@@ -5,6 +5,7 @@ import FormField from '../components/FormField';
 import { ErrorMessage } from '../components/Feedback';
 import { inputClass, primaryButtonClass } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
+import { homePathFor } from '../utils/routes';
 
 interface LocationState {
   from?: string;
@@ -14,22 +15,23 @@ export default function Login() {
   const { user, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const redirectTo = (location.state as LocationState | null)?.from ?? '/dashboard';
+  // Where the user was heading (if a protected page sent them here), otherwise their role's home page.
+  const requestedPath = (location.state as LocationState | null)?.from;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (user) return <Navigate to={redirectTo} replace />;
+  if (user) return <Navigate to={requestedPath ?? homePathFor(user.role)} replace />;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      await login({ email: email.trim(), password });
-      navigate(redirectTo, { replace: true });
+      const loggedIn = await login({ email: email.trim(), password });
+      navigate(requestedPath ?? homePathFor(loggedIn.role), { replace: true });
     } catch (err: unknown) {
       setError(getErrorMessage(err));
     } finally {

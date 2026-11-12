@@ -1,6 +1,8 @@
 import { Link, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminPage from './pages/AdminPage';
+import AdminTherapistPage from './pages/AdminTherapistPage';
 import Dashboard from './pages/Dashboard';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -28,6 +30,10 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<Dashboard />} />
+        </Route>
+        <Route element={<ProtectedRoute roles={['ADMIN']} />}>
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/admin/therapists/:id" element={<AdminTherapistPage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>

@@ -179,3 +179,105 @@ Content-Type: image/jpeg
 
 < ./photo.jpg
 ------FormBoundary--
+
+###############################################################
+# Admin (ADMIN token required)
+# Create the admin first: set ADMIN_EMAIL / ADMIN_PASSWORD in .env and run "npm run seed:admin".
+# Then put the same e-mail and password in the two variables below (do not commit real credentials).
+###############################################################
+@adminEmail = you@yourdomain.com
+@adminPassword = replace-with-the-admin-password
+
+### Admin login (200 + token)
+# @name adminLogin
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### Admin token from the last admin login
+@adminToken = {{adminLogin.response.body.token}}
+
+### Counters: pending / active / suspended / total
+GET {{baseUrl}}/api/admin/stats
+Authorization: Bearer {{adminToken}}
+
+### Moderation queue: pending therapists, oldest first
+# @name pendingList
+GET {{baseUrl}}/api/admin/therapists?status=PENDING_APPROVAL&sort=oldest
+Authorization: Bearer {{adminToken}}
+
+### All therapists: search by name / e-mail / city / title, filter by status, paging
+GET {{baseUrl}}/api/admin/therapists?q=חיפה&status=ACTIVE&page=1&limit=10
+Authorization: Bearer {{adminToken}}
+
+### Review one therapist (uses the first row of the "pendingList" request; ids are USER ids)
+# @name adminDetail
+GET {{baseUrl}}/api/admin/therapists/{{pendingList.response.body.items[0].id}}
+Authorization: Bearer {{adminToken}}
+
+### Approve (or reactivate): account becomes ACTIVE and the profile goes live
+PATCH {{baseUrl}}/api/admin/therapists/{{pendingList.response.body.items[0].id}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "status": "ACTIVE" }
+
+### Suspend: profile hidden immediately, user locked out immediately
+PATCH {{baseUrl}}/api/admin/therapists/{{pendingList.response.body.items[0].id}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "status": "SUSPENDED" }
+
+### View a private certificate (first certificate of the therapist above; the response is the file itself)
+GET {{baseUrl}}/api/admin/therapists/{{pendingList.response.body.items[0].id}}/certificates/{{adminDetail.response.body.certificates[0].id}}/file
+Authorization: Bearer {{adminToken}}
+
+### Mark that certificate verified (shows the "certificates verified" badge on the public profile)
+PATCH {{baseUrl}}/api/admin/therapists/{{pendingList.response.body.items[0].id}}/certificates/{{adminDetail.response.body.certificates[0].id}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "isVerified": true }
+
+### Delete a therapist PERMANENTLY (account + profile + files). confirmEmail must equal the account's e-mail.
+### Replace the id and e-mail below before sending; a wrong e-mail is refused with 400 and deletes nothing.
+DELETE {{baseUrl}}/api/admin/therapists/PUT-THE-USER-ID-HERE
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "confirmEmail": "the-account-email@example.com" }
+
+### All categories, including deactivated ones, with usage counts
+# @name adminCategories
+GET {{baseUrl}}/api/admin/categories
+Authorization: Bearer {{adminToken}}
+
+### Add a category (slug: lowercase latin letters, digits, single hyphens; cannot be changed later)
+POST {{baseUrl}}/api/admin/categories
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "name": "חרדה חברתית", "slug": "social-anxiety" }
+
+### Rename the first category in the list
+PATCH {{baseUrl}}/api/admin/categories/{{adminCategories.response.body[0].id}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "name": "שם חדש" }
+
+### Deactivate it (hidden from the public filter and profiles; reactivate with isActive: true)
+PATCH {{baseUrl}}/api/admin/categories/{{adminCategories.response.body[0].id}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "isActive": false }
+
+### Admin route with a therapist or no token (expects 403 / 401)
+GET {{baseUrl}}/api/admin/stats
+Authorization: Bearer {{token}}

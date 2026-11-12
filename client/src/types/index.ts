@@ -111,3 +111,66 @@ export interface LoginPayload {
 export interface RegisterPayload extends LoginPayload {
   fullName?: string;
 }
+
+// ---------- Admin panel (mirrors server/src/utils/adminDto.ts) ----------
+
+export interface AdminStats {
+  pending: number;
+  active: number;
+  suspended: number;
+  total: number;
+}
+
+/** One line of the admin lists. `id` is the USER id (accounts without a profile can still be managed). */
+export interface AdminTherapistRow {
+  id: string;
+  email: string;
+  accountStatus: UserStatus;
+  isSeeded: boolean;
+  hasProfile: boolean;
+  fullName: string;
+  professionalTitle: string;
+  city: string;
+  isPubliclyVisible: boolean;
+  profileImageUrl?: string;
+  certificateCount: number;
+  verifiedCertificateCount: number;
+  createdAt: string;
+}
+
+export interface AdminCertificate {
+  id: string;
+  title: string;
+  originalName: string;
+  uploadedAt: string;
+  isVerified: boolean;
+  fileType: 'pdf' | 'image';
+}
+
+export interface AdminTherapistDetail extends AdminTherapistRow {
+  slug?: string;
+  bio: string;
+  region?: Region;
+  gender?: Gender;
+  acceptsOnline: boolean;
+  targetAudiences: TargetAudience[];
+  categories: Category[];
+  contactInfo: ContactInfo;
+  certificates: AdminCertificate[];
+}
+
+export interface AdminTherapistQuery {
+  status?: UserStatus;
+  q?: string;
+  sort?: 'newest' | 'oldest';
+  page?: number;
+  limit?: number;
+}
+
+export interface AdminCategory {
+  id: string;
+  name: string;
+  slug: string;
+  isActive: boolean;
+  usageCount: number;
+}

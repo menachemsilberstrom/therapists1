@@ -7,6 +7,11 @@ const CODE_MESSAGES: Readonly<Record<string, string>> = {
   FILE_MISSING: 'לא נבחר קובץ.',
   FILE_FIELD_INVALID: 'שגיאה בהעלאת הקובץ. נסו שוב.',
   IMAGE_INVALID: 'לא ניתן לעבד את התמונה. נסו תמונה אחרת.',
+  NO_PROFILE: 'לחשבון הזה אין פרופיל, ולכן אי אפשר לאשר אותו. ניתן למחוק אותו.',
+  CATEGORY_SLUG_TAKEN: 'המזהה (slug) הזה כבר בשימוש.',
+  CATEGORY_NAME_TAKEN: 'כבר קיימת קטגוריה בשם הזה.',
+  CONFIRMATION_MISMATCH: 'כתובת האימייל שהוקלדה אינה תואמת. לא נמחק דבר.',
+  FILE_MISSING_FROM_STORAGE: 'קובץ התעודה חסר באחסון.',
   TOO_MANY_CERTIFICATES: 'ניתן להעלות עד 10 תעודות. מחקו תעודה קיימת כדי להוסיף חדשה.',
 };
 

@@ -5,16 +5,8 @@ import { therapistsApi } from '../api/services';
 import Avatar from '../components/Avatar';
 import { ErrorMessage, Spinner } from '../components/Feedback';
 import { panelClass, secondaryButtonClass } from '../components/ui';
-import type { TargetAudience, TherapistProfile } from '../types';
-import { REGION_LABELS, toTelUrl, toWhatsAppUrl } from '../utils/contact';
-
-const AUDIENCE_LABELS: Record<TargetAudience, string> = {
-  CHILDREN: 'ילדים',
-  TEENS: 'בני נוער',
-  ADULTS: 'מבוגרים',
-  COUPLES: 'זוגות',
-  PARENTS: 'הורים',
-};
+import type { TherapistProfile } from '../types';
+import { AUDIENCE_LABELS, REGION_LABELS, toTelUrl, toWhatsAppUrl } from '../utils/contact';
 
 export default function TherapistProfilePage() {
   const { slug } = useParams<{ slug: string }>();

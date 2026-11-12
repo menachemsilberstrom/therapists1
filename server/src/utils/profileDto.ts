@@ -1,6 +1,9 @@
-import type { Types } from 'mongoose';
+import type { PopulateOptions, Types } from 'mongoose';
 import type { ICertificate, ITherapistProfile } from '../models/TherapistProfile.js';
 import type { UserStatus } from '../models/User.js';
+
+/** Only ACTIVE categories are shown: deactivating a category removes it from profiles and filters without touching the data. */
+export const ACTIVE_CATEGORIES_POPULATE: PopulateOptions = { path: 'categories', match: { isActive: true }, select: 'name slug' };
 
 export interface PopulatedCategory {
   _id: Types.ObjectId;

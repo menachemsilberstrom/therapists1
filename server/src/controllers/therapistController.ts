@@ -10,7 +10,9 @@ import { HttpError } from '../middlewares/errorHandler.js';
 import { processAvatar } from '../services/imageService.js';
 import { storage } from '../storage/index.js';
 import { detectFileType } from '../utils/fileType.js';
+import { escapeRegex } from '../utils/regex.js';
 import {
+  ACTIVE_CATEGORIES_POPULATE,
   toCardDto,
   toOwnProfileDto,
   toProfileDto,
@@ -20,8 +22,6 @@ import {
 
 const MAX_CERTIFICATES = 10;
 const AVATAR_KEY_PREFIX = 'avatars/';
-
-const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const listQuerySchema = z.object({
   q: z.string().trim().max(100).optional(),
@@ -50,7 +50,7 @@ const updateSchema = z.object({
 
 async function findLeanProfile(filter: QueryFilter<ITherapistProfile>): Promise<LeanProfile | null> {
   const profile = await TherapistProfile.findOne(filter)
-    .populate<{ categories: PopulatedCategory[] }>('categories', 'name slug')
+    .populate<{ categories: PopulatedCategory[] }>(ACTIVE_CATEGORIES_POPULATE)
     .lean();
   return profile as unknown as LeanProfile | null;
 }
@@ -84,7 +84,7 @@ export const listTherapists: RequestHandler = async (req, res) => {
       .sort({ createdAt: -1, _id: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .populate<{ categories: PopulatedCategory[] }>('categories', 'name slug')
+      .populate<{ categories: PopulatedCategory[] }>(ACTIVE_CATEGORIES_POPULATE)
       .lean(),
   ]);
 

@@ -1,5 +1,10 @@
 import { api } from './client';
 import type {
+  AdminCategory,
+  AdminStats,
+  AdminTherapistDetail,
+  AdminTherapistQuery,
+  AdminTherapistRow,
   AuthResponse,
   Category,
   LoginPayload,
@@ -10,6 +15,7 @@ import type {
   TherapistProfile,
   TherapistSearchParams,
   UpdateProfilePayload,
+  UserStatus,
 } from '../types';
 
 export const authApi = {
@@ -48,4 +54,39 @@ export const therapistsApi = {
   },
   deleteCertificate: async (id: string): Promise<OwnTherapistProfile> =>
     (await api.delete<OwnTherapistProfile>(`/therapists/me/certificates/${encodeURIComponent(id)}`)).data,
+};
+
+export const adminApi = {
+  stats: async (): Promise<AdminStats> => (await api.get<AdminStats>('/admin/stats')).data,
+  listTherapists: async (params: AdminTherapistQuery): Promise<PagedResult<AdminTherapistRow>> =>
+    (await api.get<PagedResult<AdminTherapistRow>>('/admin/therapists', { params })).data,
+  getTherapist: async (id: string): Promise<AdminTherapistDetail> =>
+    (await api.get<AdminTherapistDetail>(`/admin/therapists/${encodeURIComponent(id)}`)).data,
+  /** ACTIVE = approve / reactivate, SUSPENDED = suspend. The server keeps account status and visibility in sync. */
+  setStatus: async (id: string, status: Extract<UserStatus, 'ACTIVE' | 'SUSPENDED'>): Promise<AdminTherapistDetail> =>
+    (await api.patch<AdminTherapistDetail>(`/admin/therapists/${encodeURIComponent(id)}/status`, { status })).data,
+  setCertificateVerified: async (id: string, certId: string, isVerified: boolean): Promise<AdminTherapistDetail> =>
+    (
+      await api.patch<AdminTherapistDetail>(
+        `/admin/therapists/${encodeURIComponent(id)}/certificates/${encodeURIComponent(certId)}`,
+        { isVerified },
+      )
+    ).data,
+  /** Certificates are private: the file can only be fetched with the admin's token, so it comes back as a Blob. */
+  fetchCertificate: async (id: string, certId: string): Promise<Blob> =>
+    (
+      await api.get<Blob>(
+        `/admin/therapists/${encodeURIComponent(id)}/certificates/${encodeURIComponent(certId)}/file`,
+        { responseType: 'blob' },
+      )
+    ).data,
+  /** The server only deletes when confirmEmail equals the account's e-mail. */
+  deleteTherapist: async (id: string, confirmEmail: string): Promise<{ deleted: boolean; filesRemoved: number }> =>
+    (await api.delete<{ deleted: boolean; filesRemoved: number }>(`/admin/therapists/${encodeURIComponent(id)}`, { data: { confirmEmail } })).data,
+
+  listCategories: async (): Promise<AdminCategory[]> => (await api.get<AdminCategory[]>('/admin/categories')).data,
+  createCategory: async (payload: { name: string; slug: string }): Promise<AdminCategory> =>
+    (await api.post<AdminCategory>('/admin/categories', payload)).data,
+  updateCategory: async (id: string, patch: { name?: string; isActive?: boolean }): Promise<AdminCategory> =>
+    (await api.patch<AdminCategory>(`/admin/categories/${encodeURIComponent(id)}`, patch)).data,
 };

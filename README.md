@@ -16,7 +16,8 @@ The full roadmap is in [`CLAUDE_BUILD_PLAN.md`](./CLAUDE_BUILD_PLAN.md). The pro
 | Phase 2 foundation (logging, security, admin seed) | Done |
 | 2.1 File uploads (avatar, certificates) | Done |
 | 2.2 Approval workflow (new therapists start as pending and hidden) | Done |
-| 2.3 Admin panel (approve / suspend, certificates, categories, users), 2.4 Advanced filters | Not started |
+| 2.3 Admin panel (approve / suspend, certificates, categories, all therapists, guarded delete) | Done |
+| 2.4 Advanced public filters | Not started |
 | Phase 3 (V1) | Not started |
 
 ## Quick start (run everything)
@@ -78,7 +79,7 @@ npm run dev               # http://localhost:5000
 | Variable | Description | Default |
 |---|---|---|
 | `PORT` | HTTP port | `5000` |
-| `MONGODB_URI` | MongoDB connection string | - (required) |
+| `MONGODB_URI` | MongoDB connection string. **Put a database name in it** (e.g. `.../therapists_directory?...`) so this app does not share a database with anything else | - (required) |
 | `JWT_SECRET` | Secret for signing tokens, at least 16 characters | - (required) |
 | `JWT_EXPIRES_IN` | Token lifetime | `7d` |
 | `CLIENT_ORIGIN` | Allowed CORS origin (the React app) | `http://localhost:5173` |
@@ -123,7 +124,7 @@ npm run seed:admin
 - **Safe to re-run:** it creates the admin, or updates role/status/password only if they differ ("already up to date" otherwise).
 - **Guards:** refuses weak or placeholder values, and refuses to silently turn an existing *therapist* account into the admin unless you add `-- --promote`.
 - The password is only stored hashed (bcrypt) and never printed. **Delete `ADMIN_PASSWORD` from `.env` afterwards.**
-- Sign in at `/login`. The server enforces the role on every request (from the database, not the token); the admin screens themselves arrive with Step 2.3.
+- Sign in at `/login`. The server enforces the role on every request (from the database, not the token); you land on the admin panel (see "Admin panel").
 
 ## Approval workflow
 
@@ -136,13 +137,30 @@ npm run seed:admin
 - **Registration** creates the account and profile as pending and hidden. The dashboard shows a yellow "waiting for approval" banner and no public-profile link; once approved it turns into a green "active" note.
 - **Hidden means hidden everywhere:** the public search skips the profile and `/therapist/<slug>` returns 404 for it.
 - **Status is always current:** it is read from the database on every request, never from the login token, so an approval or suspension shows up on the user's next request without logging in again.
-- **Approve and suspend actions** are part of the admin panel (Step 2.3). Approving sets the account to `ACTIVE` and the profile to visible in one step; suspending does the reverse.
+- **Approve and suspend** are done in the admin panel. Approving sets the account to `ACTIVE` and the profile to visible in one step; suspending does the reverse (and hides first, so a failure halfway can never leave a suspended account visible).
 - Therapists who registered before this step, and the seeded sample therapists, stay active and visible.
+
+## Admin panel
+
+Sign in with the admin account (see "Admin account") and you land on `/admin`. Only `ADMIN` users can open it; everyone else is sent to the home page, and the API refuses them with `403` (the role is checked against the database on every request).
+
+| Tab / page | What you can do |
+|---|---|
+| **Pending approval** (`/admin`) | The moderation queue, oldest first, with a counter badge. Quick **Approve** button, or open a therapist to review them first. |
+| **All therapists** (`/admin?tab=therapists`) | Every therapist account with search (name, e-mail, city, title) and a status filter. Seeded sample accounts are labelled "נתוני דוגמה"; accounts without a profile are labelled "אין פרופיל". |
+| **Review page** (`/admin/therapists/<id>`) | Full profile, **Approve / Reject (suspend) / Suspend / Reactivate**, certificates, and the delete section. |
+| **Categories** (`/admin?tab=categories`) | Add (name + latin slug), rename, deactivate / reactivate, with how many profiles use each. |
+
+- **Certificates** are private. "View file" fetches the file with your admin token and opens it from a temporary local URL; the storage path is never exposed and the response is never cached. Every view and every verification is written to the server log (admin id and therapist id only, no personal details). **Verify** marks a certificate verified, which shows the "תעודות אומתו" badge on the therapist's public profile.
+- **Categories are never deleted, only deactivated.** A deactivated category disappears from the public filter and from profiles (the data is kept, and reactivating brings it back). The slug appears in URLs, so it cannot be changed after creation.
+- **Deleting a therapist** permanently removes the account, the profile, the avatar and all certificate files. It is guarded twice: the confirmation field must contain the account's exact e-mail (the button stays disabled until it does, and the server re-checks it), and admin accounts can never be deleted or suspended through these screens. To just hide someone, suspend them instead.
+- **Suspending** hides the profile at once and locks the user out at once (existing sessions get `403`).
+- Admin screens are keyed by user id, so accounts whose profile is missing can still be inspected and deleted.
 
 ## Uploads & storage
 
 - **Avatar:** JPG/PNG/WEBP up to 5MB. The server checks the file's real bytes (not its name or Content-Type), rotates it per its EXIF orientation, crops it to a 512x512 square and saves it as WebP. All metadata (such as GPS location) is dropped. Each upload gets a new random file name, and the previous picture is deleted.
-- **Certificates:** optional PDF/JPG/PNG/WEBP up to 5MB each (max 10 per therapist). They are stored in a **private** folder that is never served; the owner sees only title, name and verification status. Admin access arrives with Step 2.3.
+- **Certificates:** optional PDF/JPG/PNG/WEBP up to 5MB each (max 10 per therapist). They are stored in a **private** folder that is never served; the owner sees only title, name and verification status. Admins open them through an authenticated endpoint (see "Admin panel").
 - **Where files live:** `server/uploads/public` (avatars, served at `/uploads`) and `server/uploads/private` (certificates). The whole folder is git-ignored. Back it up like the database.
 - **Storage is behind an interface** (`server/src/storage/`). Today it is local disk. Moving to a cloud provider such as Cloudinary or S3 means adding one `StorageProvider` class, with no change to routes or controllers. Note that many hosting platforms wipe local disk on every deploy, so use a cloud provider or a persistent volume in production.
 - Uploads are rate limited (60 per hour per IP) and only reachable after authentication, so anonymous requests are rejected before any file is read.
@@ -186,6 +204,16 @@ Base URL: `http://localhost:5000`. Protected routes need `Authorization: Bearer 
 | POST | `/api/therapists/me/certificates` | Therapist | Upload a certificate (multipart: `title` + file `certificate`), max 10, private |
 | DELETE | `/api/therapists/me/certificates/:certId` | Therapist | Delete one of your certificates |
 | GET | `/uploads/avatars/<file>` | Public | Serves avatars (static, cacheable) |
+| GET | `/api/admin/stats` | Admin | Counts of pending / active / suspended / total therapists |
+| GET | `/api/admin/therapists` | Admin | All therapist accounts. Query: `status`, `q`, `sort` (`newest`/`oldest`), `page`, `limit` (max 50) |
+| GET | `/api/admin/therapists/:id` | Admin | Full detail for review (`:id` is the user id) |
+| PATCH | `/api/admin/therapists/:id/status` | Admin | Body `{ "status": "ACTIVE" \| "SUSPENDED" }`: approve / reactivate or suspend |
+| DELETE | `/api/admin/therapists/:id` | Admin | Body `{ "confirmEmail": "<the account's e-mail>" }`: deletes account, profile and files |
+| GET | `/api/admin/therapists/:id/certificates/:certId/file` | Admin | Streams the private certificate (inline, never cached, logged) |
+| PATCH | `/api/admin/therapists/:id/certificates/:certId` | Admin | Body `{ "isVerified": true \| false }` |
+| GET | `/api/admin/categories` | Admin | All categories (including deactivated) with usage counts |
+| POST | `/api/admin/categories` | Admin | Body `{ "name", "slug" }` |
+| PATCH | `/api/admin/categories/:id` | Admin | Body `{ "name"?, "isActive"? }` |
 
 Details:
 
@@ -225,5 +253,6 @@ server/
     storage/            # StorageProvider interface + local-disk implementation
     services/           # image processing (sharp)
     scripts/            # seedCategories, seedAdmin, seedTherapists (+ lib/: docx reader, row mapper)
+    # admin: controllers/adminController.ts + adminCategoryController.ts, routes/adminRoutes.ts, utils/adminDto.ts
     server.ts           # entry point
 ```

@@ -7,7 +7,7 @@ const USER_KEY = 'auth_user';
 
 interface AuthContextValue {
   user: AuthUser | null;
-  login: (payload: LoginPayload) => Promise<void>;
+  login: (payload: LoginPayload) => Promise<AuthUser>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => void;
 }
@@ -50,10 +50,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  const login = useCallback(async (payload: LoginPayload) => {
+  const login = useCallback(async (payload: LoginPayload): Promise<AuthUser> => {
     const session = await authApi.login(payload);
     storeSession(session);
     setUser(session.user);
+    return session.user;
   }, []);
 
   const register = useCallback(async (payload: RegisterPayload) => {

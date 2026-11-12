@@ -30,9 +30,15 @@ export default function Navbar() {
 
         {user ? (
           <>
-            <NavLink to="/dashboard" className={linkClass}>
-              האזור האישי
-            </NavLink>
+            {user.role === 'ADMIN' ? (
+              <NavLink to="/admin" className={linkClass}>
+                ניהול
+              </NavLink>
+            ) : (
+              <NavLink to="/dashboard" className={linkClass}>
+                האזור האישי
+              </NavLink>
+            )}
             <button
               type="button"
               onClick={handleLogout}

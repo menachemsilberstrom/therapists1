@@ -1,4 +1,4 @@
-import type { Region } from '../types';
+import type { Region, TargetAudience } from '../types';
 
 export const REGION_LABELS: Record<Region, string> = {
   NORTH: 'צפון',
@@ -18,3 +18,11 @@ export function toWhatsAppUrl(phone: string): string {
   const international = digits.startsWith('0') ? `972${digits.slice(1)}` : digits;
   return `https://wa.me/${international}`;
 }
+
+export const AUDIENCE_LABELS: Record<TargetAudience, string> = {
+  CHILDREN: 'ילדים',
+  TEENS: 'בני נוער',
+  ADULTS: 'מבוגרים',
+  COUPLES: 'זוגות',
+  PARENTS: 'הורים',
+};

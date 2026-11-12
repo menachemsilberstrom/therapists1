@@ -9,6 +9,7 @@ import { connectDB } from './config/db.js';
 import { authRouter } from './routes/authRoutes.js';
 import { therapistRouter } from './routes/therapistRoutes.js';
 import { categoryRouter } from './routes/categoryRoutes.js';
+import { adminRouter } from './routes/adminRoutes.js';
 import { errorHandler, notFound } from './middlewares/errorHandler.js';
 import { apiLimiter, authLimiter } from './middlewares/rateLimit.js';
 import { publicUploadsDir } from './storage/index.js';
@@ -60,6 +61,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authLimiter, authRouter);
 app.use('/api/therapists', therapistRouter);
 app.use('/api/categories', categoryRouter);
+app.use('/api/admin', adminRouter);
 
 app.use(notFound);
 app.use(errorHandler);
