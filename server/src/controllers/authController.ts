@@ -43,14 +43,15 @@ export const register: RequestHandler = async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  // POC: new users are ACTIVE so results appear immediately (becomes PENDING_APPROVAL in Step 2.2)
-  const user = await User.create({ email, passwordHash, role: 'THERAPIST', status: 'ACTIVE' });
+  // Approval workflow: a new therapist can sign in and prepare their profile, but stays hidden from the
+  // public until an admin approves the account (admin sets status ACTIVE + isPubliclyVisible true together).
+  const user = await User.create({ email, passwordHash, role: 'THERAPIST', status: 'PENDING_APPROVAL' });
 
   await TherapistProfile.create({
     userId: user._id,
     slug: makeSlug(fullName ?? email.split('@')[0] ?? 'therapist'),
     fullName: fullName ?? '',
-    isPubliclyVisible: true,
+    isPubliclyVisible: false,
   });
 
   res.status(201).json({ token: signToken(user), user: publicUser(user) });

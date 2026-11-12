@@ -61,6 +61,8 @@ export interface OwnCertificate {
 /** The logged-in therapist's own profile: the public data plus their certificates. */
 export interface OwnTherapistProfile extends TherapistProfile {
   certificates: OwnCertificate[];
+  /** PENDING_APPROVAL = waiting for an admin. Always current: the server reads it from the database. */
+  accountStatus: UserStatus;
 }
 
 export interface PagedResult<T> {

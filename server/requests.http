@@ -13,7 +13,7 @@ GET {{baseUrl}}/api/health
 # Auth
 ###############################################################
 
-### Register a new therapist (201 + token; run twice to see 409)
+### Register a new therapist (201 + token, account starts PENDING_APPROVAL and hidden; run twice to see 409)
 # @name register
 POST {{baseUrl}}/api/auth/register
 Content-Type: application/json

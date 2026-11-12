@@ -28,7 +28,7 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
   if (!user) throw new HttpError(401, 'Invalid or expired token');
   if (user.status === 'SUSPENDED') throw new HttpError(403, 'Account suspended');
 
-  req.auth = { userId, role: user.role };
+  req.auth = { userId, role: user.role, status: user.status };
   req.log.setBindings({ userId }); // every later log line of this request carries the user id
   next();
 };

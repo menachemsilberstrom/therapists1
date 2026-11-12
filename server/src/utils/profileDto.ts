@@ -1,5 +1,6 @@
 import type { Types } from 'mongoose';
 import type { ICertificate, ITherapistProfile } from '../models/TherapistProfile.js';
+import type { UserStatus } from '../models/User.js';
 
 export interface PopulatedCategory {
   _id: Types.ObjectId;
@@ -52,9 +53,13 @@ export interface OwnCertificateDto {
   isVerified: boolean;
 }
 
-/** The therapist's own view of their profile: the public data plus their certificates. */
+/**
+ * The therapist's own view of their profile: the public data plus their certificates and the approval state.
+ * accountStatus PENDING_APPROVAL means "waiting for an admin"; isPubliclyVisible says whether the profile is live.
+ */
 export interface OwnTherapistProfileDto extends TherapistProfileDto {
   certificates: OwnCertificateDto[];
+  accountStatus: UserStatus;
 }
 
 const SNIPPET_LENGTH = 160;
@@ -111,9 +116,10 @@ export function toProfileDto(p: LeanProfile): TherapistProfileDto {
 }
 
 /** Only for the logged-in owner (GET/PUT/uploads on /me). Public endpoints must keep using toProfileDto. */
-export function toOwnProfileDto(p: LeanProfile): OwnTherapistProfileDto {
+export function toOwnProfileDto(p: LeanProfile, accountStatus: UserStatus): OwnTherapistProfileDto {
   return {
     ...toProfileDto(p),
+    accountStatus,
     certificates: p.certificates.map((c) => {
       const { _id } = c as ICertificate & { _id: Types.ObjectId }; // lean subdocuments carry an _id at runtime
       return { id: _id.toString(), title: c.title, originalName: c.originalName, uploadedAt: c.uploadedAt, isVerified: c.isVerified };

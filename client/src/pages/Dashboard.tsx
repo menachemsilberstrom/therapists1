@@ -6,6 +6,7 @@ import { ErrorMessage, Spinner, SuccessMessage } from '../components/Feedback';
 import FormField from '../components/FormField';
 import { inputClass, panelClass, primaryButtonClass, secondaryButtonClass } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
+import ApprovalStatus from '../components/ApprovalStatus';
 import AvatarUploader from '../components/AvatarUploader';
 import CertificatesManager from '../components/CertificatesManager';
 import type { Category, OwnTherapistProfile, TherapistProfile } from '../types';
@@ -119,12 +120,14 @@ export default function Dashboard() {
     <div className="mx-auto max-w-2xl">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold sm:text-2xl">עריכת הפרופיל שלי</h1>
-        {profile.fullName && (
+        {profile.fullName && profile.isPubliclyVisible && (
           <Link to={`/therapist/${profile.slug}`} className={`${secondaryButtonClass} w-full sm:w-auto`}>
             צפייה בפרופיל הציבורי
           </Link>
         )}
       </div>
+
+      <ApprovalStatus profile={profile} />
 
       {/* Uploads save immediately and independently of the text form, so unsaved text edits are kept. */}
       <AvatarUploader name={profile.fullName} imageUrl={profile.profileImageUrl} onChange={setProfile} />

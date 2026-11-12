@@ -15,7 +15,8 @@ The full roadmap is in [`CLAUDE_BUILD_PLAN.md`](./CLAUDE_BUILD_PLAN.md). The pro
 | 1.3 Frontend (React) | Done |
 | Phase 2 foundation (logging, security, admin seed) | Done |
 | 2.1 File uploads (avatar, certificates) | Done |
-| 2.2 Approval workflow, 2.3 Admin panel, 2.4 Advanced filters | Not started |
+| 2.2 Approval workflow (new therapists start as pending and hidden) | Done |
+| 2.3 Admin panel (approve / suspend, certificates, categories, users), 2.4 Advanced filters | Not started |
 | Phase 3 (V1) | Not started |
 
 ## Quick start (run everything)
@@ -124,6 +125,20 @@ npm run seed:admin
 - The password is only stored hashed (bcrypt) and never printed. **Delete `ADMIN_PASSWORD` from `.env` afterwards.**
 - Sign in at `/login`. The server enforces the role on every request (from the database, not the token); the admin screens themselves arrive with Step 2.3.
 
+## Approval workflow
+
+| Account status | Can sign in | Profile visible to the public | Set by |
+|---|---|---|---|
+| `PENDING_APPROVAL` | Yes (can edit the profile, upload a photo and certificates) | No | Registration |
+| `ACTIVE` | Yes | Yes (`isPubliclyVisible: true`) | Admin approval |
+| `SUSPENDED` | No, effective immediately (existing tokens get `403 Account suspended`) | No | Admin |
+
+- **Registration** creates the account and profile as pending and hidden. The dashboard shows a yellow "waiting for approval" banner and no public-profile link; once approved it turns into a green "active" note.
+- **Hidden means hidden everywhere:** the public search skips the profile and `/therapist/<slug>` returns 404 for it.
+- **Status is always current:** it is read from the database on every request, never from the login token, so an approval or suspension shows up on the user's next request without logging in again.
+- **Approve and suspend actions** are part of the admin panel (Step 2.3). Approving sets the account to `ACTIVE` and the profile to visible in one step; suspending does the reverse.
+- Therapists who registered before this step, and the seeded sample therapists, stay active and visible.
+
 ## Uploads & storage
 
 - **Avatar:** JPG/PNG/WEBP up to 5MB. The server checks the file's real bytes (not its name or Content-Type), rotates it per its EXIF orientation, crops it to a 512x512 square and saves it as WebP. All metadata (such as GPS location) is dropped. Each upload gets a new random file name, and the previous picture is deleted.
@@ -159,12 +174,12 @@ Base URL: `http://localhost:5000`. Protected routes need `Authorization: Bearer 
 | Method | Route | Access | Description |
 |---|---|---|---|
 | GET | `/api/health` | Public | Health check |
-| POST | `/api/auth/register` | Public | Create a therapist account + empty profile. Returns `{ token, user }` |
+| POST | `/api/auth/register` | Public | Create a therapist account + empty profile, both **pending approval and hidden** (see "Approval workflow"). Returns `{ token, user }` |
 | POST | `/api/auth/login` | Public | Returns `{ token, user }` |
 | GET | `/api/categories` | Public | Active categories (`id`, `name`, `slug`) |
 | GET | `/api/therapists` | Public | Search visible therapists. Query: `q`, `category` (slug), `page`, `limit` (max 50) |
 | GET | `/api/therapists/:slug` | Public | Full public profile |
-| GET | `/api/therapists/me` | Therapist | Own profile (to prefill the dashboard form) |
+| GET | `/api/therapists/me` | Therapist | Own profile (to prefill the dashboard form), including `certificates`, `isPubliclyVisible` and the current `accountStatus` |
 | PUT | `/api/therapists/me` | Therapist | Partial update of own profile |
 | POST | `/api/therapists/me/avatar` | Therapist | Upload or replace the profile picture (multipart, field `avatar`) |
 | DELETE | `/api/therapists/me/avatar` | Therapist | Remove the profile picture |
@@ -177,7 +192,7 @@ Details:
 - **Search:** `q` matches name, professional title, bio and city (case-insensitive). Results only include profiles that are publicly visible and have a name. Response: `{ items, total, page, limit, totalPages }`.
 - **`PUT /api/therapists/me` fields (all optional):** `fullName`, `professionalTitle`, `bio`, `city`, `phone`, `whatsapp`, `contactEmail`, `categories` (array of category **slugs**).
 - **Privacy:** public responses never include the account `userId` or certificate files.
-- **POC behaviour:** new accounts are `ACTIVE` and public right away. This changes to an admin approval flow in Phase 2 (Step 2.2).
+- **Approval:** new accounts start as `PENDING_APPROVAL` and are hidden until an admin approves them (see "Approval workflow").
 
 ## Testing the API without Postman
 

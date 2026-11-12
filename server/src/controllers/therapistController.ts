@@ -1,10 +1,11 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import type { RequestHandler } from 'express';
+import type { Request, RequestHandler } from 'express';
 import type { QueryFilter } from 'mongoose';
 import { Types } from 'mongoose';
 import { z } from 'zod';
 import { Category } from '../models/Category.js';
 import { TherapistProfile, type ITherapistProfile } from '../models/TherapistProfile.js';
+import type { UserStatus } from '../models/User.js';
 import { HttpError } from '../middlewares/errorHandler.js';
 import { processAvatar } from '../services/imageService.js';
 import { storage } from '../storage/index.js';
@@ -110,7 +111,7 @@ export const getTherapistBySlug: RequestHandler = async (req, res) => {
 export const getMyProfile: RequestHandler = async (req, res) => {
   const profile = await findLeanProfile({ userId: new Types.ObjectId(req.auth?.userId) });
   if (!profile) throw new HttpError(404, 'Profile not found');
-  res.json(toOwnProfileDto(profile));
+  res.json(toOwnProfileDto(profile, authOf(req).status));
 };
 
 /** PUT /api/therapists/me - update own text fields. Only the fields that are sent are changed. */
@@ -138,13 +139,19 @@ export const updateMyProfile: RequestHandler = async (req, res) => {
 
   await profile.save();
 
-  res.json(await loadOwnProfileDto(profile._id));
+  res.json(await loadOwnProfileDto(profile._id, authOf(req).status));
 };
 
-async function loadOwnProfileDto(profileId: Types.ObjectId) {
+async function loadOwnProfileDto(profileId: Types.ObjectId, accountStatus: UserStatus) {
   const updated = await findLeanProfile({ _id: profileId });
   if (!updated) throw new HttpError(404, 'Profile not found');
-  return toOwnProfileDto(updated);
+  return toOwnProfileDto(updated, accountStatus);
+}
+
+/** requireAuth always sets req.auth before these handlers run; this just satisfies the type checker honestly. */
+function authOf(req: Request): NonNullable<Request['auth']> {
+  if (!req.auth) throw new HttpError(401, 'Authentication required');
+  return req.auth;
 }
 
 async function findMyProfileDocument(userId: string | undefined) {
@@ -193,7 +200,7 @@ export const setMyAvatar: RequestHandler = async (req, res) => {
   }
   if (previousKey?.startsWith(AVATAR_KEY_PREFIX)) await removeQuietly(req, 'public', previousKey);
 
-  res.json(await loadOwnProfileDto(profile._id));
+  res.json(await loadOwnProfileDto(profile._id, authOf(req).status));
 };
 
 /** DELETE /api/therapists/me/avatar - back to the initial-letter placeholder. */
@@ -205,7 +212,7 @@ export const removeMyAvatar: RequestHandler = async (req, res) => {
   await profile.save();
   if (previousKey?.startsWith(AVATAR_KEY_PREFIX)) await removeQuietly(req, 'public', previousKey);
 
-  res.json(await loadOwnProfileDto(profile._id));
+  res.json(await loadOwnProfileDto(profile._id, authOf(req).status));
 };
 
 const certificateSchema = z.object({ title: z.string().trim().min(2).max(150) });
@@ -243,7 +250,7 @@ export const addMyCertificate: RequestHandler = async (req, res) => {
     throw err;
   }
 
-  res.status(201).json(await loadOwnProfileDto(profile._id));
+  res.status(201).json(await loadOwnProfileDto(profile._id, authOf(req).status));
 };
 
 /** DELETE /api/therapists/me/certificates/:certId - remove one of my own certificates and its file. */
@@ -260,5 +267,5 @@ export const removeMyCertificate: RequestHandler = async (req, res) => {
   await profile.save();
   await removeQuietly(req, 'private', removed.fileUrl);
 
-  res.json(await loadOwnProfileDto(profile._id));
+  res.json(await loadOwnProfileDto(profile._id, authOf(req).status));
 };

@@ -86,7 +86,7 @@ export default function CertificatesManager({ certificates, onChange }: Certific
           {certificates.map((cert) => (
             <li key={cert.id} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="break-words font-medium text-slate-900">{cert.title}</p>
+                <p className="wrap-break-word font-medium text-slate-900">{cert.title}</p>
                 <p className="break-all text-xs text-slate-500">
                   {cert.originalName} · {new Date(cert.uploadedAt).toLocaleDateString('he-IL')}
                 </p>
