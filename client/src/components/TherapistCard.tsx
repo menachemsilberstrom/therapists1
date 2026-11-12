@@ -8,7 +8,7 @@ export default function TherapistCard({ therapist }: { therapist: TherapistCardD
   return (
     <Link
       to={`/therapist/${therapist.slug}`}
-      className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 transition hover:border-teal-300 hover:shadow-md"
+      className="flex h-full min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 transition hover:border-teal-300 hover:shadow-md"
     >
       <div className="flex items-center gap-3">
         <div
