@@ -45,7 +45,20 @@ export interface TherapistProfileDto extends Omit<TherapistCardDto, 'bioSnippet'
 
 const SNIPPET_LENGTH = 160;
 
-const toCategoryDtos = (cats: PopulatedCategory[]): CategoryDto[] =>
+/**
+ * Short teaser for result cards: the first paragraph of the bio, whitespace collapsed,
+ * cut at a word boundary. (Cutting the raw bio ran several sections together and split words.)
+ */
+export function makeSnippet(bio: string): string {
+  const firstParagraph = (bio.split(/\n\s*\n/)[0] ?? '').replace(/\s+/g, ' ').trim();
+  if (firstParagraph.length <= SNIPPET_LENGTH) return firstParagraph;
+  const cut = firstParagraph.slice(0, SNIPPET_LENGTH);
+  const lastSpace = cut.lastIndexOf(' ');
+  const trimmed = lastSpace > SNIPPET_LENGTH * 0.6 ? cut.slice(0, lastSpace) : cut;
+  return `${trimmed.trimEnd().replace(/[,;:.\-–]+$/, '')}…`;
+}
+
+const toCategoryDtos =(cats: PopulatedCategory[]): CategoryDto[] =>
   cats.map((c) => ({ id: c._id.toString(), name: c.name, slug: c.slug }));
 
 export function toCardDto(p: LeanProfile): TherapistCardDto {
@@ -57,7 +70,7 @@ export function toCardDto(p: LeanProfile): TherapistCardDto {
     city: p.city,
     region: p.region,
     acceptsOnline: p.acceptsOnline,
-    bioSnippet: p.bio.length > SNIPPET_LENGTH ? `${p.bio.slice(0, SNIPPET_LENGTH).trimEnd()}…` : p.bio,
+    bioSnippet: makeSnippet(p.bio),
     profileImageUrl: p.profileImageUrl,
     categories: toCategoryDtos(p.categories),
   };

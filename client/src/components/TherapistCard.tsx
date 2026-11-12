@@ -32,7 +32,7 @@ export default function TherapistCard({ therapist }: { therapist: TherapistCardD
         )}
       </div>
 
-      {therapist.bioSnippet && <p className="mt-3 break-words text-sm leading-relaxed text-slate-600">{therapist.bioSnippet}</p>}
+      {therapist.bioSnippet && <p className="mt-3 line-clamp-3 wrap-break-word text-sm leading-relaxed text-slate-600">{therapist.bioSnippet}</p>}
 
       {therapist.categories.length > 0 && (
         <div className="mt-auto flex flex-wrap gap-2 pt-4">
