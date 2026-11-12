@@ -1,0 +1,11 @@
+{
+  "name": "therapists-directory",
+  "private": true,
+  "description": "Convenience scripts for the whole project. The server and the client are separate packages (server/, client/).",
+  "scripts": {
+    "test": "npm --prefix server test && npm --prefix client test",
+    "test:server": "npm --prefix server test",
+    "test:client": "npm --prefix client test",
+    "typecheck": "npm --prefix server run typecheck && npm --prefix client run typecheck"
+  }
+}

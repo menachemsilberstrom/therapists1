@@ -2,6 +2,7 @@ import pino from 'pino';
 import { env } from './env.js';
 
 const isProduction = env.NODE_ENV === 'production';
+const usePrettyOutput = env.NODE_ENV === 'development';
 
 /**
  * Structured logger. Production: one JSON object per line (easy to ship to any log service).
@@ -21,7 +22,7 @@ export const logger = pino({
     ],
     censor: '[redacted]',
   },
-  ...(isProduction
+  ...(!usePrettyOutput
     ? {}
     : {
         transport: {

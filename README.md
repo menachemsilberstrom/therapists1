@@ -19,6 +19,7 @@ The full roadmap is in [`CLAUDE_BUILD_PLAN.md`](./CLAUDE_BUILD_PLAN.md). The pro
 | 2.3 Admin panel (approve / suspend, certificates, categories, all therapists, guarded delete) | Done |
 | 2.4 Advanced public filters (sidebar + URL-shareable search) | Done |
 | **Phase 2 (MVP)** | **Complete** |
+| Automated test suites (server + client) | Done |
 | Phase 3 (V1) | Not started |
 
 ## Quick start (run everything)
@@ -270,6 +271,48 @@ Details:
 - **Privacy:** public responses never include the account `userId` or certificate files.
 - **Approval:** new accounts start as `PENDING_APPROVAL` and are hidden until an admin approves them (see "Approval workflow").
 
+## Automated tests
+
+Two test suites live in the repository. **Neither touches your real database or sends anything to the internet**, so they are safe to run any time, and they never create users in Atlas.
+
+| Suite | Tool | Where | What it covers |
+|---|---|---|---|
+| **Server** | Vitest + Supertest, against a throw-away in-memory MongoDB | `server/tests/` | Registration and login, token handling, **role guards** (anonymous / therapist / admin on every protected route), the public directory and all search filters, profile editing (including mass-assignment attempts), the approval workflow end to end, the admin API (queue, approve / suspend, guarded delete, categories), avatar and certificate uploads and privacy, rate limiting, plus unit tests for file-type detection, storage path safety and the response mappers that must never leak private data |
+| **Client** | Vitest + React Testing Library (simulated browser) | `client/src/**/*.test.ts(x)` next to the code | Login and registration forms, route guards, the logged-in session, automatic logout, the pending / active **status banners**, the dashboard form, avatar upload validation, the filter sidebar and the URL-driven search page, the admin screens (queue, categories, review page, **type-the-e-mail-to-delete**) |
+
+### How to run them (step by step)
+
+1. **Install once** (if you have not already): `npm install` inside `server/` and inside `client/`.
+2. **Run everything** from the project root:
+   ```bash
+   npm test
+   ```
+   This runs the server suite, then the client suite. It stops at the first failing suite.
+3. **Or run one side only:**
+   ```bash
+   npm run test:server      # from the project root, or: cd server && npm test
+   npm run test:client      # from the project root, or: cd client && npm test
+   ```
+4. **While developing:** `npm run test:watch` inside `server/` or `client/` re-runs the affected tests whenever you save a file.
+5. **One file or one test:**
+   ```bash
+   cd server && npm test -- tests/auth.test.ts
+   cd client && npm test -- src/pages/Login.test.tsx
+   cd client && npm test -- -t "pending therapist"     # only tests whose name contains this text
+   ```
+6. **Type-check the code and the tests together:** `npm run typecheck` from the project root.
+
+A healthy run prints `Test Files  N passed (N)` and `Tests  M passed (M)` and exits with code 0. The server suite takes about a minute, the client suite about 20 seconds.
+
+### Good to know
+
+- **First server run downloads MongoDB once** (about 75 MB, cached in `~/.cache/mongodb-binaries`), so it takes a little longer; later runs start the in-memory database in about a second.
+- **Safety net:** `server/tests/setup.ts` refuses to run unless the database address is a local in-memory one, and each test file gets its own empty database that is dropped afterwards.
+- **`npm test` in `server/` is a small runner** (`tests/run.mjs`). On some Windows machines Node occasionally aborts a test worker by itself ("Worker exited unexpectedly with exit code 3221226505"); that is a crash of the runtime, not a failing test. The runner recognises exactly that and re-runs only the affected files (up to three times) and says so. A real test failure is **never** retried or hidden. `npm run test:raw` runs Vitest directly without this safety.
+- **Test files are plain examples to copy:** server tests use the helpers in `server/tests/helpers.ts` (`createTherapist`, `createAdmin`, `api()`, ...), client tests use `client/src/test/utils.tsx` (`renderWithProviders`, `httpError`, fixtures).
+- **To check that a test really protects something**, break the code on purpose (for example remove `requireRole('ADMIN')` from `adminRoutes.ts`) and run the suite: it should turn red. This was done for the key protections when the suites were written.
+- The browser-level, whole-site checks used during development (real Edge against a running server) are not part of these suites. A natural next step is a small Playwright suite for them.
+
 ## Testing the API without Postman
 
 1. Install the **REST Client** extension in VS Code (`humao.rest-client`).
@@ -287,9 +330,13 @@ client/
     pages/              # Home, TherapistProfilePage, Login, Register, Dashboard
     types/              # TypeScript interfaces mirroring the server DTOs
     utils/              # contact links (tel / WhatsApp), region labels
+    test/               # test setup and helpers (render with router + auth, fixtures)
+    **/*.test.ts(x)     # component, page and logic tests, next to the code they test
     App.tsx             # routes
     main.tsx
+package.json            # root scripts: npm test, npm run typecheck
 server/
+  tests/                # server test suite (Vitest + Supertest, in-memory MongoDB); run with npm test
   requests.http         # REST Client requests
   src/
     config/             # env validation, DB connection

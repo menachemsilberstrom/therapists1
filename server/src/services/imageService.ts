@@ -1,4 +1,3 @@
-import sharp from 'sharp';
 import { HttpError } from '../middlewares/errorHandler.js';
 
 export const AVATAR_SIZE = 512;
@@ -11,6 +10,8 @@ const MAX_INPUT_PIXELS = 40_000_000; // refuse decompression bombs (a tiny file 
  * - "attention" crops around the most interesting part (usually the face) instead of the dead centre
  */
 export async function processAvatar(input: Buffer): Promise<Buffer> {
+  // Loaded on first use: the native image library is only needed for uploads, not for starting the app.
+  const { default: sharp } = await import('sharp');
   try {
     return await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS })
       .rotate()

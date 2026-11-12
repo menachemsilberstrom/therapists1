@@ -42,7 +42,7 @@ export const register: RequestHandler = async (req, res) => {
     throw new HttpError(409, 'Email already registered');
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
+  const passwordHash = await bcrypt.hash(password, env.BCRYPT_ROUNDS);
   // Approval workflow: a new therapist can sign in and prepare their profile, but stays hidden from the
   // public until an admin approves the account (admin sets status ACTIVE + isPubliclyVisible true together).
   const user = await User.create({ email, passwordHash, role: 'THERAPIST', status: 'PENDING_APPROVAL' });

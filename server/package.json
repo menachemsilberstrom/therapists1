@@ -7,11 +7,14 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.tests.json",
     "seed": "tsx src/scripts/seedCategories.ts",
     "seed:therapists": "tsx src/scripts/seedTherapists.ts",
     "seed:admin": "tsx src/scripts/seedAdmin.ts",
-    "db:check": "tsx src/scripts/checkDb.ts"
+    "db:check": "tsx src/scripts/checkDb.ts",
+    "test": "node tests/run.mjs",
+    "test:watch": "vitest",
+    "test:raw": "vitest run"
   },
   "keywords": [],
   "type": "module",
@@ -38,8 +41,12 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.3.0",
     "@types/node": "^26.6.6",
+    "@types/supertest": "^7.2.1",
+    "mongodb-memory-server": "^11.3.0",
     "pino-pretty": "^13.2.0",
+    "supertest": "^7.3.2",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   }
 }
