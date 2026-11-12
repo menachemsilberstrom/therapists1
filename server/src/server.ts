@@ -76,8 +76,12 @@ process.on('uncaughtException', (err) => {
 });
 
 connectDB()
-  .then(() => {
-    logger.info('MongoDB connected');
+  .then((database) => {
+    logger.info({ database }, 'MongoDB connected');
+    if (database === 'test') {
+      // No database name in MONGODB_URI: MongoDB silently uses "test", which other applications often share too.
+      logger.warn('Using the default "test" database. Put a database name in MONGODB_URI (e.g. .../therapists_directory).');
+    }
     app.listen(env.PORT, () => logger.info(`Server listening on http://localhost:${env.PORT} (${env.NODE_ENV})`));
   })
   .catch((err: unknown) => {

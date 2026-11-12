@@ -99,9 +99,34 @@ npm run dev               # http://localhost:5000
 | `npm run dev` | Start the server with auto-reload |
 | `npm run seed` | Seed categories |
 | `npm run seed:admin` | Create or update the admin account from `ADMIN_EMAIL` / `ADMIN_PASSWORD` (see "Admin account") |
+| `npm run db:check` | Read-only health check of the configured database (see "First-time database setup") |
 | `npm run seed:therapists` | Import the sample therapists from the `.docx` directory file (see "Sample data") |
 | `npm run typecheck` | Type-check without building |
 | `npm run build` / `npm start` | Compile to `dist/` and run it |
+
+## First-time database setup
+
+Use a database that belongs to this app alone. A connection string **without** a database name makes MongoDB use the default database `test`, which other applications often share.
+
+1. **Put the database name in `server/.env`**, between the host and the options:
+   ```
+   MONGODB_URI=mongodb+srv://USER:PASSWORD@cluster0.xxxxx.mongodb.net/therapists_directory?appName=Cluster0
+   ```
+   The server logs `MongoDB connected {"database":"therapists_directory"}` on start, and warns if it ends up on `test`.
+2. **Check the (empty) database:** `npm run db:check`. It is read-only. It should print `Database: "therapists_directory"` and `[ok] only this app's collections are present`.
+3. **Seed it** (from `server/`):
+   ```bash
+   npm run seed                  # the 12 categories
+   npm run seed:therapists       # sample therapists from the .docx (needs the file, see "Sample data")
+   npm run seed:admin            # the admin account (needs ADMIN_EMAIL + ADMIN_PASSWORD in .env, see "Admin account")
+   ```
+4. **Verify:** `npm run db:check` again. A healthy database shows 12 categories, the seeded therapists with a profile each, 1 admin, and `[ok]` on every line, including the four unique indexes.
+
+Notes:
+- Every seed is safe to re-run; `seed:therapists -- --reset` removes only the seeded sample accounts first.
+- Indexes are created automatically whenever the server or a seed connects (missing ones only; nothing is ever dropped).
+- Switching `MONGODB_URI` to a new database does **not** move anything: accounts, profiles and sessions of the old database stay there. Files in `server/uploads/` belong to the old data, so start with an empty `uploads/` folder for a new database.
+- `db:check` flags anything that is not this app's own data (extra collections, users without a role, categories without a slug), which is how a shared database shows up.
 
 ## Search filters
 

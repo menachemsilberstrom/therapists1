@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "seed": "tsx src/scripts/seedCategories.ts",
     "seed:therapists": "tsx src/scripts/seedTherapists.ts",
-    "seed:admin": "tsx src/scripts/seedAdmin.ts"
+    "seed:admin": "tsx src/scripts/seedAdmin.ts",
+    "db:check": "tsx src/scripts/checkDb.ts"
   },
   "keywords": [],
   "type": "module",
