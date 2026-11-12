@@ -9,6 +9,9 @@ dist/
 .env.*
 !.env.example
 
+# Sample directory documents contain real people's phone numbers / emails: keep them out of git
+*.docx
+
 # Uploaded files (certificates, avatars)
 uploads/
 **/uploads/

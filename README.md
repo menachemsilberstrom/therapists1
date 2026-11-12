@@ -88,8 +88,29 @@ npm run dev               # http://localhost:5000
 |---|---|
 | `npm run dev` | Start the server with auto-reload |
 | `npm run seed` | Seed categories |
+| `npm run seed:therapists` | Import the sample therapists from the `.docx` directory file (see "Sample data") |
 | `npm run typecheck` | Type-check without building |
 | `npm run build` / `npm start` | Compile to `dist/` and run it |
+
+## Sample data (seed therapists)
+
+To see realistic data in the UI, import the therapists from the sample directory document (a `.docx` with one table per region, placed in the project root):
+
+```bash
+cd server
+npm run seed:therapists -- --dry-run   # parse only: prints statistics, writes nothing
+npm run seed:therapists                # import (creates categories too if missing)
+npm run seed:therapists -- --reset     # remove previously seeded therapists, then import again
+npm run seed:therapists -- --file "path/to/other.docx"
+```
+
+How it works:
+- The script reads the `.docx` directly (the only `.docx` in the project root is used, or pass `--file` / set `SEED_DOCX_PATH`).
+- **Mapping:** region comes from the table heading; city from the first place listed; "זום" marks online therapy; specialties and target audience are matched to categories and audiences by keywords; gender is inferred from the Hebrew job title when it is unambiguous (otherwise left empty). The document's own text is kept in the bio.
+- **Cleaning:** blank rows and clinic/centre rows (e.g. "מרכז אור הבית") are skipped, `last, first` names are flipped, and a therapist listed under several regions becomes one profile (first region wins, extra places are added to the bio).
+- **Idempotent:** running it again updates the same profiles instead of duplicating them (stable slugs, one placeholder account per therapist).
+- **Placeholder accounts** use `seed-<hash>@seed.invalid` with a random password nobody knows, so seeded therapists appear in the directory but cannot be logged into. `--reset` removes exactly these accounts.
+- The `.docx` contains real contact details, so `*.docx` is git-ignored. Do not commit or publish it.
 
 ## API
 
@@ -141,6 +162,6 @@ server/
     controllers/        # auth, therapist, category
     routes/             # /api/auth, /api/therapists, /api/categories
     utils/              # response DTO mappers
-    scripts/            # seedCategories
+    scripts/            # seedCategories, seedTherapists (+ lib/: docx reader, row mapper)
     server.ts           # entry point
 ```
