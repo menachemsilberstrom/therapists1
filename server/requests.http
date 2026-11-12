@@ -1,0 +1,57 @@
+@baseUrl = http://localhost:5000
+@email = test@example2.com
+@password = 12345678
+
+###############################################################
+# System
+###############################################################
+
+### Health check
+GET {{baseUrl}}/api/health
+
+###############################################################
+# Auth
+###############################################################
+
+### Register a new therapist (201 + token; run twice to see 409)
+# @name register
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}",
+  "fullName": "Test Therapist"
+}
+
+### Login (200 + token) - run this before the protected requests below
+# @name login
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Token from the last login, used by the protected requests
+@token = {{login.response.body.token}}
+
+### Login with a wrong password (expects 401)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "wrong-password"
+}
+
+### Register with a short password (expects 400)
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "short@example.com",
+  "password": "123"
+}
+

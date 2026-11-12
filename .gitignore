@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+
+# Uploaded files (certificates, avatars)
+uploads/
+**/uploads/
+
+# Logs & OS / editor files
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
