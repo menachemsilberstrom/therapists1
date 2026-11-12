@@ -17,7 +17,8 @@ The full roadmap is in [`CLAUDE_BUILD_PLAN.md`](./CLAUDE_BUILD_PLAN.md). The pro
 | 2.1 File uploads (avatar, certificates) | Done |
 | 2.2 Approval workflow (new therapists start as pending and hidden) | Done |
 | 2.3 Admin panel (approve / suspend, certificates, categories, all therapists, guarded delete) | Done |
-| 2.4 Advanced public filters | Not started |
+| 2.4 Advanced public filters (sidebar + URL-shareable search) | Done |
+| **Phase 2 (MVP)** | **Complete** |
 | Phase 3 (V1) | Not started |
 
 ## Quick start (run everything)
@@ -41,7 +42,7 @@ React + Vite + TypeScript + Tailwind CSS v4, Hebrew **RTL** (`<html lang="he" di
 
 | Route | Access | Page |
 |---|---|---|
-| `/` | Public | Search (text box + category chips + pagination) and therapist cards |
+| `/` | Public | Search: keyword box + advanced filter sidebar (see "Search filters") + therapist cards + pagination |
 | `/therapist/:slug` | Public | Full profile with call / WhatsApp / email buttons |
 | `/login`, `/register` | Public | Auth forms |
 | `/dashboard` | Logged-in therapist | Edit own profile (text fields + categories) |
@@ -101,6 +102,27 @@ npm run dev               # http://localhost:5000
 | `npm run seed:therapists` | Import the sample therapists from the `.docx` directory file (see "Sample data") |
 | `npm run typecheck` | Type-check without building |
 | `npm run build` / `npm start` | Compile to `dist/` and run it |
+
+## Search filters
+
+The public search (`GET /api/therapists`, and the sidebar on the home page) combines these filters:
+
+| Filter | Parameter | Values | Matching |
+|---|---|---|---|
+| Keyword | `q` | text | name, professional title, bio or city contains the text |
+| Categories | `category` | one or more category slugs | **any of** the selected (OR) |
+| Gender | `gender` | `MALE`, `FEMALE` | exact |
+| Region | `region` | `NORTH`, `CENTER`, `JERUSALEM`, `SOUTH`, `ONLINE_ONLY` | exact |
+| City | `city` | text | city name contains the text (case-insensitive) |
+| Target audience | `audience` | `CHILDREN`, `TEENS`, `ADULTS`, `COUPLES`, `PARENTS` | **any of** the selected (OR) |
+| Online | `online` | `true` / `1` | only therapists who also treat online; `false`/`0` means no filter |
+
+- **Different filters narrow each other (AND); several values of the same filter widen it (OR).** Example: `?category=anxiety,trauma&gender=FEMALE&region=NORTH` = women in the north who work with anxiety **or** trauma.
+- Multiple values can be sent as `a,b` or repeated (`audience=TEENS&audience=COUPLES`). Empty parameters mean "no filter". Unknown enum values are rejected with `400`.
+- **The URL is the source of truth on the website:** every filter lives in the address bar (`/?region=NORTH&gender=FEMALE&audience=ADULTS&online=1`), so a search can be bookmarked and shared, the Back button works, and unknown or tampered values are ignored. Changing a filter returns to page 1.
+- **UI:** on desktop the filters are a permanent sidebar; on phones they collapse behind a "סינון מתקדם" button (with a badge showing how many options are selected). Active filters appear as removable tags above the results, and the city box suggests cities that really have therapists.
+- Only publicly visible profiles are ever searched: pending or suspended therapists never match any filter.
+- **Therapists set these fields themselves** in the dashboard (gender, region, target audiences, "I also treat online"). All are optional; a therapist who leaves one empty simply isn't matched when a client filters by it.
 
 ## Logging & security
 
@@ -195,7 +217,8 @@ Base URL: `http://localhost:5000`. Protected routes need `Authorization: Bearer 
 | POST | `/api/auth/register` | Public | Create a therapist account + empty profile, both **pending approval and hidden** (see "Approval workflow"). Returns `{ token, user }` |
 | POST | `/api/auth/login` | Public | Returns `{ token, user }` |
 | GET | `/api/categories` | Public | Active categories (`id`, `name`, `slug`) |
-| GET | `/api/therapists` | Public | Search visible therapists. Query: `q`, `category` (slug), `page`, `limit` (max 50) |
+| GET | `/api/therapists` | Public | Search visible therapists. Query (all optional): `q`, `category` (slugs), `gender`, `region`, `city`, `audience`, `online`, `page`, `limit` (max 50). See "Search filters" |
+| GET | `/api/therapists/filter-options` | Public | Cities that currently have visible therapists, with counts (for the search suggestions) |
 | GET | `/api/therapists/:slug` | Public | Full public profile |
 | GET | `/api/therapists/me` | Therapist | Own profile (to prefill the dashboard form), including `certificates`, `isPubliclyVisible` and the current `accountStatus` |
 | PUT | `/api/therapists/me` | Therapist | Partial update of own profile |

@@ -75,9 +75,23 @@ export interface PagedResult<T> {
 
 export interface TherapistSearchParams {
   q?: string;
+  /** Category slugs, comma separated ("any of"). */
   category?: string;
+  gender?: Gender;
+  region?: Region;
+  /** Part of a city name. */
+  city?: string;
+  /** Target audiences, comma separated ("any of"). */
+  audience?: string;
+  /** true = only therapists who also treat online. */
+  online?: boolean;
   page?: number;
   limit?: number;
+}
+
+export interface CityOption {
+  name: string;
+  count: number;
 }
 
 export interface UpdateProfilePayload {
@@ -89,6 +103,11 @@ export interface UpdateProfilePayload {
   whatsapp?: string;
   contactEmail?: string;
   categories?: string[]; // category slugs
+  /** null clears the value. */
+  gender?: Gender | null;
+  region?: Region | null;
+  acceptsOnline?: boolean;
+  targetAudiences?: TargetAudience[];
 }
 
 export interface AuthUser {

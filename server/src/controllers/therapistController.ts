@@ -23,9 +23,34 @@ import {
 const MAX_CERTIFICATES = 10;
 const AVATAR_KEY_PREFIX = 'avatars/';
 
+const REGIONS = ['NORTH', 'CENTER', 'JERUSALEM', 'SOUTH', 'ONLINE_ONLY'] as const;
+const GENDERS = ['MALE', 'FEMALE'] as const;
+const AUDIENCES = ['CHILDREN', 'TEENS', 'ADULTS', 'COUPLES', 'PARENTS'] as const;
+
+/** "?x=a,b" and "?x=a&x=b" both become ["a", "b"]; empty pieces are dropped. */
+const toList = (v: unknown): unknown =>
+  v === undefined
+    ? undefined
+    : (Array.isArray(v) ? v : [v])
+        .flatMap((item) => (typeof item === 'string' ? item.split(',') : []))
+        .map((s) => s.trim())
+        .filter(Boolean);
+/** An empty parameter ("?gender=") means "no filter" instead of being a validation error. */
+const blankToUndefined = (v: unknown): unknown => (v === '' ? undefined : v);
+const toBoolean = (v: unknown): unknown => (v === 'true' || v === '1' ? true : v === 'false' || v === '0' ? false : v);
+
+/**
+ * Public search filters. Different filters are combined with AND; several values of the same multi-select
+ * filter (categories, audiences) are combined with OR ("anxiety OR trauma").
+ */
 const listQuerySchema = z.object({
   q: z.string().trim().max(100).optional(),
-  category: z.string().trim().max(100).optional(), // category slug
+  category: z.preprocess(toList, z.array(z.string().max(100)).max(12).optional()), // category slugs
+  gender: z.preprocess(blankToUndefined, z.enum(GENDERS).optional()),
+  region: z.preprocess(blankToUndefined, z.enum(REGIONS).optional()),
+  city: z.preprocess(blankToUndefined, z.string().trim().max(100).optional()),
+  audience: z.preprocess(toList, z.array(z.enum(AUDIENCES)).max(AUDIENCES.length).optional()),
+  online: z.preprocess(toBoolean, z.boolean().optional()),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(12),
 });
@@ -46,6 +71,11 @@ const updateSchema = z.object({
   whatsapp: phoneSchema.optional(),
   contactEmail: z.union([z.string().trim().email(), z.literal('')]).optional(),
   categories: z.array(z.string().trim().min(1).max(100)).max(10).optional(), // category slugs
+  // The public search filters on these, so therapists must be able to set them. null clears the value.
+  gender: z.enum(GENDERS).nullable().optional(),
+  region: z.enum(REGIONS).nullable().optional(),
+  acceptsOnline: z.boolean().optional(),
+  targetAudiences: z.array(z.enum(AUDIENCES)).max(AUDIENCES.length).optional(),
 });
 
 async function findLeanProfile(filter: QueryFilter<ITherapistProfile>): Promise<LeanProfile | null> {
@@ -55,9 +85,13 @@ async function findLeanProfile(filter: QueryFilter<ITherapistProfile>): Promise<
   return profile as unknown as LeanProfile | null;
 }
 
-/** GET /api/therapists - public search (text + category), visible profiles only. */
+/**
+ * GET /api/therapists - public search over visible profiles.
+ * Filters (all optional, combined with AND): q (name/title/bio/city text), category (slugs, any of),
+ * gender, region, city (contains), audience (any of), online (true = also treats online).
+ */
 export const listTherapists: RequestHandler = async (req, res) => {
-  const { q, category, page, limit } = listQuerySchema.parse(req.query);
+  const { q, category, gender, region, city, audience, online, page, limit } = listQuerySchema.parse(req.query);
 
   const filter: QueryFilter<ITherapistProfile> = {
     isPubliclyVisible: true,
@@ -68,14 +102,20 @@ export const listTherapists: RequestHandler = async (req, res) => {
     const rx = new RegExp(escapeRegex(q), 'i');
     filter.$or = [{ fullName: rx }, { professionalTitle: rx }, { bio: rx }, { city: rx }];
   }
+  if (gender) filter.gender = gender;
+  if (region) filter.region = region;
+  if (city) filter.city = new RegExp(escapeRegex(city), 'i');
+  if (audience?.length) filter.targetAudiences = { $in: audience };
+  if (online) filter.acceptsOnline = true;
 
-  if (category) {
-    const cat = await Category.findOne({ slug: category, isActive: true }, '_id').lean();
-    if (!cat) {
+  if (category?.length) {
+    const cats = await Category.find({ slug: { $in: category }, isActive: true }, '_id').lean();
+    if (cats.length === 0) {
+      // Only unknown or deactivated categories were requested: nothing can match.
       res.json({ items: [], total: 0, page, limit, totalPages: 0 });
       return;
     }
-    filter.categories = cat._id;
+    filter.categories = { $in: cats.map((c) => c._id) };
   }
 
   const [total, profiles] = await Promise.all([
@@ -95,6 +135,18 @@ export const listTherapists: RequestHandler = async (req, res) => {
     limit,
     totalPages: Math.ceil(total / limit),
   });
+};
+
+/** GET /api/therapists/filter-options - the cities that actually have visible therapists (for the search suggestions). */
+export const getFilterOptions: RequestHandler = async (_req, res) => {
+  const rows = await TherapistProfile.aggregate<{ _id: string; count: number }>([
+    { $match: { isPubliclyVisible: true, fullName: { $ne: '' }, city: { $ne: '' } } },
+    { $group: { _id: '$city', count: { $sum: 1 } } },
+    { $sort: { count: -1, _id: 1 } },
+    { $limit: 100 },
+  ]);
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  res.json({ cities: rows.map((r) => ({ name: r._id, count: r.count })) });
 };
 
 /** GET /api/therapists/:slug - public full profile. */
@@ -133,6 +185,10 @@ export const updateMyProfile: RequestHandler = async (req, res) => {
   if (data.professionalTitle !== undefined) profile.professionalTitle = data.professionalTitle;
   if (data.bio !== undefined) profile.bio = data.bio;
   if (data.city !== undefined) profile.city = data.city;
+  if (data.gender !== undefined) profile.gender = data.gender ?? undefined;
+  if (data.region !== undefined) profile.region = data.region ?? undefined;
+  if (data.acceptsOnline !== undefined) profile.acceptsOnline = data.acceptsOnline;
+  if (data.targetAudiences !== undefined) profile.targetAudiences = [...new Set(data.targetAudiences)];
   if (data.phone !== undefined) profile.contactInfo.phone = data.phone;
   if (data.whatsapp !== undefined) profile.contactInfo.whatsapp = data.whatsapp;
   if (data.contactEmail !== undefined) profile.contactInfo.email = data.contactEmail;

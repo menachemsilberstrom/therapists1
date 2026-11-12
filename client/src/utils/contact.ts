@@ -1,4 +1,4 @@
-import type { Region, TargetAudience } from '../types';
+import type { Gender, Region, TargetAudience } from '../types';
 
 export const REGION_LABELS: Record<Region, string> = {
   NORTH: 'צפון',
@@ -25,4 +25,9 @@ export const AUDIENCE_LABELS: Record<TargetAudience, string> = {
   ADULTS: 'מבוגרים',
   COUPLES: 'זוגות',
   PARENTS: 'הורים',
+};
+
+export const GENDER_LABELS: Record<Gender, string> = {
+  MALE: 'מטפל (גבר)',
+  FEMALE: 'מטפלת (אישה)',
 };

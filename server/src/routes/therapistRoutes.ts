@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   addMyCertificate,
+  getFilterOptions,
   getMyProfile,
   getTherapistBySlug,
   listTherapists,
@@ -18,8 +19,9 @@ export const therapistRouter = Router();
 
 const therapistOnly = [requireAuth, requireRole('THERAPIST')];
 
-// Public
+// Public (filter-options is declared before "/:slug" so it is never mistaken for a slug)
 therapistRouter.get('/', listTherapists);
+therapistRouter.get('/filter-options', getFilterOptions);
 
 // Protected (declared before "/:slug" so "me" is never treated as a slug)
 therapistRouter.get('/me', ...therapistOnly, getMyProfile);

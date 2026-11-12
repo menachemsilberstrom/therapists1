@@ -83,7 +83,11 @@ Content-Type: application/json
   "phone": "050-1234567",
   "whatsapp": "972501234567",
   "contactEmail": "dana@example.com",
-  "categories": ["anxiety", "couples-therapy"]
+  "categories": ["anxiety", "couples-therapy"],
+  "gender": "FEMALE",
+  "region": "NORTH",
+  "acceptsOnline": true,
+  "targetAudiences": ["ADULTS", "COUPLES"]
 }
 
 ### Update with an unknown category (expects 400)
@@ -110,6 +114,24 @@ Content-Type: application/json
 ### List therapists (default page 1, 12 per page)
 # @name list
 GET {{baseUrl}}/api/therapists
+
+### Advanced filters (all optional, combine freely): category slugs are "any of", audience is "any of", the rest narrow (AND)
+GET {{baseUrl}}/api/therapists?category=anxiety,trauma&gender=FEMALE&region=NORTH
+
+### Filter by target audience (any of): CHILDREN, TEENS, ADULTS, COUPLES, PARENTS
+GET {{baseUrl}}/api/therapists?audience=TEENS,COUPLES
+
+### Only therapists who also treat online, in a given city (city = part of the name)
+GET {{baseUrl}}/api/therapists?online=true&city=חיפה
+
+### Everything together: keyword + categories + gender + region + city + audience + online, page 1 of 5
+GET {{baseUrl}}/api/therapists?q=טראומה&category=trauma,youth&gender=FEMALE&region=CENTER&audience=ADULTS&online=true&page=1&limit=5
+
+### Invalid filter value (expects 400)
+GET {{baseUrl}}/api/therapists?gender=ALIEN
+
+### Cities that currently have visible therapists, with counts (used for the search suggestions)
+GET {{baseUrl}}/api/therapists/filter-options
 
 ### Search by text (name / title / bio / city)
 GET {{baseUrl}}/api/therapists?q=חיפה

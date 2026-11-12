@@ -80,5 +80,10 @@ const therapistProfileSchema = new Schema<ITherapistProfile>(
 );
 
 therapistProfileSchema.index({ fullName: 'text', bio: 'text', professionalTitle: 'text' });
+// Indexes for the public search filters (visible profiles filtered by region / category / audience / city).
+therapistProfileSchema.index({ isPubliclyVisible: 1, region: 1 });
+therapistProfileSchema.index({ isPubliclyVisible: 1, categories: 1 });
+therapistProfileSchema.index({ isPubliclyVisible: 1, targetAudiences: 1 });
+therapistProfileSchema.index({ isPubliclyVisible: 1, city: 1 });
 
 export const TherapistProfile = model<ITherapistProfile>('TherapistProfile', therapistProfileSchema);

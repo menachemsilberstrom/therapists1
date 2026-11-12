@@ -7,6 +7,7 @@ import type {
   AdminTherapistRow,
   AuthResponse,
   Category,
+  CityOption,
   LoginPayload,
   OwnTherapistProfile,
   PagedResult,
@@ -32,6 +33,9 @@ export const categoriesApi = {
 export const therapistsApi = {
   list: async (params: TherapistSearchParams): Promise<PagedResult<TherapistCardData>> =>
     (await api.get<PagedResult<TherapistCardData>>('/therapists', { params })).data,
+  /** Cities that currently have visible therapists (search suggestions). */
+  filterOptions: async (): Promise<{ cities: CityOption[] }> =>
+    (await api.get<{ cities: CityOption[] }>('/therapists/filter-options')).data,
   getBySlug: async (slug: string): Promise<TherapistProfile> =>
     (await api.get<TherapistProfile>(`/therapists/${encodeURIComponent(slug)}`)).data,
   getMine: async (): Promise<OwnTherapistProfile> => (await api.get<OwnTherapistProfile>('/therapists/me')).data,
