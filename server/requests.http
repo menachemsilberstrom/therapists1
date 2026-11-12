@@ -1,5 +1,5 @@
 @baseUrl = http://localhost:5000
-@email = test@example2.com
+@email = test@example3.com
 @password = 12345678
 
 ###############################################################
