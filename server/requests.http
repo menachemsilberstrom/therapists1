@@ -55,3 +55,73 @@ Content-Type: application/json
   "password": "123"
 }
 
+###############################################################
+# Categories (public)
+###############################################################
+
+### List categories (use the "slug" values below)
+GET {{baseUrl}}/api/categories
+
+###############################################################
+# My profile (therapist token required)
+###############################################################
+
+### Get my profile
+GET {{baseUrl}}/api/therapists/me
+Authorization: Bearer {{token}}
+
+### Update my profile (partial update; categories are slugs from /api/categories)
+PUT {{baseUrl}}/api/therapists/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fullName": "דנה כהן",
+  "professionalTitle": "מטפלת רגשית וזוגית",
+  "bio": "מטפלת עם ניסיון של 10 שנים בטיפול בחרדה, זוגיות והורות.",
+  "city": "חיפה",
+  "phone": "050-1234567",
+  "whatsapp": "972501234567",
+  "contactEmail": "dana@example.com",
+  "categories": ["anxiety", "couples-therapy"]
+}
+
+### Update with an unknown category (expects 400)
+PUT {{baseUrl}}/api/therapists/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "categories": ["does-not-exist"]
+}
+
+### Update without a token (expects 401)
+PUT {{baseUrl}}/api/therapists/me
+Content-Type: application/json
+
+{
+  "bio": "should fail"
+}
+
+###############################################################
+# Public directory
+###############################################################
+
+### List therapists (default page 1, 12 per page)
+# @name list
+GET {{baseUrl}}/api/therapists
+
+### Search by text (name / title / bio / city)
+GET {{baseUrl}}/api/therapists?q=חיפה
+
+### Filter by category slug
+GET {{baseUrl}}/api/therapists?category=anxiety
+
+### Search + category + pagination together
+GET {{baseUrl}}/api/therapists?q=דנה&category=anxiety&page=1&limit=5
+
+### Get one therapist by slug (uses the first result of the "list" request above)
+GET {{baseUrl}}/api/therapists/{{list.response.body.items[0].slug}}
+
+### Unknown slug (expects 404)
+GET {{baseUrl}}/api/therapists/no-such-therapist
