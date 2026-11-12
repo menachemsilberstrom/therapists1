@@ -9,7 +9,8 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "seed": "tsx src/scripts/seedCategories.ts",
-    "seed:therapists": "tsx src/scripts/seedTherapists.ts"
+    "seed:therapists": "tsx src/scripts/seedTherapists.ts",
+    "seed:admin": "tsx src/scripts/seedAdmin.ts"
   },
   "keywords": [],
   "type": "module",
