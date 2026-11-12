@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { makeCard } from '../test/utils';
 import type { TherapistCardData } from '../types';
 import TherapistCard from './TherapistCard';
@@ -61,5 +61,20 @@ describe('TherapistCard', () => {
     fireEvent.error(img); // the browser could not load the picture
     expect(broken.container.querySelector('img')).toBeNull();
     expect(screen.getByText('ד')).toBeInTheDocument();
+  });
+});
+
+describe('TherapistCard avatar address', () => {
+  it('loads the picture from the API address when the site and the API live on different domains', async () => {
+    vi.resetModules();
+    vi.stubEnv('VITE_API_URL', 'https://therapists-api.onrender.com');
+    const { default: Card } = await import('./TherapistCard');
+    const { container } = render(
+      <MemoryRouter>
+        <Card therapist={makeCard({ profileImageUrl: '/uploads/avatars/x.webp' })} />
+      </MemoryRouter>,
+    );
+    expect(container.querySelector('img')).toHaveAttribute('src', 'https://therapists-api.onrender.com/uploads/avatars/x.webp');
+    vi.unstubAllEnvs();
   });
 });

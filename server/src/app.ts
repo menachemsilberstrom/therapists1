@@ -13,12 +13,23 @@ import { errorHandler, notFound } from './middlewares/errorHandler.js';
 import { apiLimiter, authLimiter } from './middlewares/rateLimit.js';
 import { publicUploadsDir } from './storage/index.js';
 
+export interface AppOptions {
+  /** Overrides TRUST_PROXY (used by the tests). */
+  trustProxy?: number;
+  /** Overrides the origins parsed from CLIENT_ORIGIN (used by the tests). */
+  corsOrigins?: string[];
+}
+
 /**
  * Builds the Express application. It does NOT connect to the database or listen on a port, so the same app can be
  * started by server.ts and driven directly by the automated tests (tests/).
  */
-export function createApp(): Express {
+export function createApp(options: AppOptions = {}): Express {
+  const trustProxy = options.trustProxy ?? env.TRUST_PROXY;
+  const corsOrigins = options.corsOrigins ?? env.CLIENT_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean);
+
   const app = express();
+  if (trustProxy > 0) app.set('trust proxy', trustProxy); // behind a proxy, req.ip must come from X-Forwarded-For
 
   app.use(
     pinoHttp({
@@ -40,7 +51,7 @@ export function createApp(): Express {
     }),
   );
   app.use(helmet());
-  app.use(cors({ origin: env.CLIENT_ORIGIN }));
+  app.use(cors({ origin: corsOrigins })); // only the listed websites may call the API from a browser
   app.use(express.json({ limit: '1mb' }));
 
   // Public files only (avatars). The private folder (certificates) is never mounted.

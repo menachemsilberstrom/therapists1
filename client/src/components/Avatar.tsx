@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { assetUrl } from '../api/client';
 
 interface AvatarProps {
   name: string;
@@ -17,7 +18,7 @@ export default function Avatar({ name, src, className, alt = '', eager = false }
   if (src && src !== failedSrc) {
     return (
       <img
-        src={src}
+        src={assetUrl(src)}
         alt={alt}
         loading={eager ? 'eager' : 'lazy'}
         onError={() => setFailedSrc(src)}

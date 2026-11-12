@@ -14,7 +14,10 @@
     "db:check": "tsx src/scripts/checkDb.ts",
     "test": "node tests/run.mjs",
     "test:watch": "vitest",
-    "test:raw": "vitest run"
+    "test:raw": "vitest run",
+    "seed:prod": "node dist/scripts/seedCategories.js",
+    "seed:admin:prod": "node dist/scripts/seedAdmin.js",
+    "db:check:prod": "node dist/scripts/checkDb.js"
   },
   "keywords": [],
   "type": "module",
@@ -48,5 +51,8 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=22.12"
   }
 }

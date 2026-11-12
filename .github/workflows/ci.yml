@@ -1,0 +1,179 @@
+name: CI
+
+# Runs on every push to any branch and on every pull request.
+on:
+  push:
+  pull_request:
+
+# A newer push to the same branch cancels the run that is still in progress for it.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  server:
+    name: Server (typecheck, build, tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      # The tests start a throw-away in-memory MongoDB. Its binary (about 75 MB) is downloaded once and then cached.
+      - name: Cache the MongoDB binary used by the tests
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('server/package-lock.json') }}
+          restore-keys: mongodb-binaries-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check (code and tests)
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Run the tests
+        run: npm test
+
+  client:
+    name: Client (typecheck, tests, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check (code and tests)
+        run: npm run typecheck
+
+      - name: Run the tests
+        run: npm test
+
+      # Same command Vercel runs. VITE_API_URL is only baked into the bundle, so a dummy address is enough here.
+      - name: Production build
+        run: npm run build
+        env:
+          VITE_API_URL: https://api.example.com
+
+  docker:
+    name: Backend Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1}).ok'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build the image (the same Dockerfile Render uses)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          file: ./server/Dockerfile
+          load: true
+          push: false
+          tags: therapists-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The real thing: the image runs against a real MongoDB (the service above) and the API is used like a browser would.
+      - name: Smoke test - run the image against MongoDB and use the API (register, log in, upload an avatar, stop)
+        run: |
+          set -eu
+          API=http://127.0.0.1:10000
+          docker run -d --name api --network host \
+            -e PORT=10000 \
+            -e JWT_SECRET=ci-smoke-test-secret-that-is-long-enough \
+            -e "MONGODB_URI=mongodb://127.0.0.1:27017/ci_smoke" \
+            -e CLIENT_ORIGIN=https://my-site.example \
+            therapists-api:ci
+
+          echo "waiting for the API..."
+          for i in $(seq 1 45); do curl -fsS "$API/api/health" >/dev/null 2>&1 && break; sleep 1; done
+          health=$(curl -fsS "$API/api/health") || { docker logs api; exit 1; }
+          echo "health: $health"
+
+          # CORS: the website listed in CLIENT_ORIGIN is allowed
+          cors=$(curl -fsS -H "Origin: https://my-site.example" -D - -o /dev/null "$API/api/health" | tr -d '\r')
+          echo "$cors" | grep -i "^access-control-allow-origin: https://my-site.example" >/dev/null
+
+          # register, then log in again (exercises MongoDB and the password hashing)
+          reg=$(curl -fsS -X POST "$API/api/auth/register" -H 'Content-Type: application/json' \
+            -d '{"email":"ci@example.com","password":"ci-password-123","fullName":"CI Test"}')
+          echo "$reg" | jq -e '.user.status == "PENDING_APPROVAL"' >/dev/null
+          login=$(curl -fsS -X POST "$API/api/auth/login" -H 'Content-Type: application/json' \
+            -d '{"email":"ci@example.com","password":"ci-password-123"}')
+          TOKEN=$(echo "$login" | jq -r .token)
+
+          # upload an avatar (exercises sharp's native image library inside the image, and the uploads folder)
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQI12PgqjiBFTEMLQkADShSgd8UYJsAAAAASUVORK5CYII=' | base64 -d > pixel.png
+          up=$(curl -fsS -X POST "$API/api/therapists/me/avatar" -H "Authorization: Bearer $TOKEN" -F "avatar=@pixel.png;type=image/png")
+          url=$(echo "$up" | jq -r .profileImageUrl)
+          echo "avatar stored at $url"
+          [ "${url#/uploads/avatars/}" != "$url" ]
+          curl -fsS -D - -o /dev/null "$API$url" | tr -d '\r' | grep -i "^content-type: image/webp" >/dev/null
+
+          # stop it the way Render does: the app must shut down cleanly (exit code 0), not be killed
+          docker stop api
+          code=$(docker inspect -f '{{.State.ExitCode}}' api)
+          docker logs api 2>&1 | grep "Shutting down" >/dev/null
+          echo "exit code after docker stop: $code"
+          [ "$code" = "0" ]
+
+      - name: Smoke test - the app runs unprivileged and can write to the uploads folder
+        run: |
+          uid=$(docker run --rm therapists-api:ci id -u)
+          echo "the app runs as uid $uid"
+          [ "$uid" != "0" ] || { echo "::error::the container runs as root"; exit 1; }
+          docker run --rm therapists-api:ci sh -c 'touch /data/uploads/write-test && echo "uploads folder is writable"'
+
+      - name: Smoke test - secrets and test files are not inside the image
+        run: |
+          docker run --rm --entrypoint sh therapists-api:ci -c '
+            ls -a /app | tr "\n" " "; echo
+            [ ! -e /app/.env ] && [ ! -d /app/tests ] && [ ! -d /app/src ] && echo "no .env, tests or sources in the image"
+          '

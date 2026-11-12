@@ -96,3 +96,44 @@ describe('response interceptor (automatic logout)', () => {
     await expect(api.get('/x')).rejects.toMatchObject({ response: { status: 401 } });
   });
 });
+
+describe('API address (development vs. production)', () => {
+  /** Loads a fresh copy of the module, as if the app had been built with this VITE_API_URL. */
+  async function loadWith(url: string | undefined) {
+    vi.resetModules();
+    if (url === undefined) vi.stubEnv('VITE_API_URL', '');
+    else vi.stubEnv('VITE_API_URL', url);
+    return import('./client');
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('uses relative URLs in development (the dev server proxies them)', async () => {
+    const mod = await loadWith(undefined);
+    expect(mod.API_ORIGIN).toBe('');
+    expect(mod.api.defaults.baseURL).toBe('/api');
+    expect(mod.assetUrl('/uploads/avatars/a.webp')).toBe('/uploads/avatars/a.webp');
+  });
+
+  it('calls the API on its own address in production, and prefixes avatar links the same way', async () => {
+    const mod = await loadWith('https://therapists-api.onrender.com');
+    expect(mod.API_ORIGIN).toBe('https://therapists-api.onrender.com');
+    expect(mod.api.defaults.baseURL).toBe('https://therapists-api.onrender.com/api');
+    expect(mod.assetUrl('/uploads/avatars/a.webp')).toBe('https://therapists-api.onrender.com/uploads/avatars/a.webp');
+  });
+
+  it.each(['https://api.example.com/', 'https://api.example.com///', '  https://api.example.com  '])('tolerates a sloppy value: %j', async (value) => {
+    const mod = await loadWith(value);
+    expect(mod.API_ORIGIN).toBe('https://api.example.com');
+    expect(mod.api.defaults.baseURL).toBe('https://api.example.com/api');
+  });
+
+  it('leaves absolute URLs and missing values alone', async () => {
+    const mod = await loadWith('https://api.example.com');
+    expect(mod.assetUrl('https://cdn.example.com/x.png')).toBe('https://cdn.example.com/x.png');
+    expect(mod.assetUrl(undefined)).toBeUndefined();
+    expect(mod.assetUrl('')).toBe('');
+  });
+});

@@ -1,5 +1,7 @@
 # Community Therapists Directory & Content Platform
 
+![CI](https://github.com/menachemsilberstrom/therapists1/actions/workflows/ci.yml/badge.svg)
+
 A Hebrew (RTL) directory where therapists sign up and publish a profile, and visitors can search for a therapist.
 
 **Stack:** MongoDB (Mongoose) · Express (TypeScript) · React + Vite + Tailwind (planned) · Node.js
@@ -20,6 +22,7 @@ The full roadmap is in [`CLAUDE_BUILD_PLAN.md`](./CLAUDE_BUILD_PLAN.md). The pro
 | 2.4 Advanced public filters (sidebar + URL-shareable search) | Done |
 | **Phase 2 (MVP)** | **Complete** |
 | Automated test suites (server + client) | Done |
+| Production setup (Docker image, CI pipeline, deployment guide) | Done |
 | Phase 3 (V1) | Not started |
 
 ## Quick start (run everything)
@@ -55,6 +58,7 @@ Mobile-first responsive design:
 - Shared styles live in `client/src/components/ui.ts`.
 
 Notes:
+- **API address:** in development the Vite dev server proxies `/api` and `/uploads` to the local server. In production set `VITE_API_URL` (see "Deployment") so the site calls the API on its own address; profile pictures use the same address.
 - The login token is kept in `localStorage` and sent by an Axios interceptor. If the server answers `401` (expired token) the user is logged out automatically.
 - `ProtectedRoute` is only a UX guard. Real access control is enforced by the server (JWT + role middleware).
 
@@ -84,7 +88,9 @@ npm run dev               # http://localhost:5000
 | `MONGODB_URI` | MongoDB connection string. **Put a database name in it** (e.g. `.../therapists_directory?...`) so this app does not share a database with anything else | - (required) |
 | `JWT_SECRET` | Secret for signing tokens, at least 16 characters | - (required) |
 | `JWT_EXPIRES_IN` | Token lifetime | `7d` |
-| `CLIENT_ORIGIN` | Allowed CORS origin (the React app) | `http://localhost:5173` |
+| `CLIENT_ORIGIN` | Website address(es) allowed to call the API (CORS), comma separated | `http://localhost:5173` |
+| `TRUST_PROXY` | Number of reverse proxies in front of the server (0 locally, 1 on Render) | `0` |
+| `BCRYPT_ROUNDS` | Password hashing cost (the tests use the minimum, 4) | `12` |
 | `UPLOADS_DIR` | Folder for uploaded files, relative to `server/` (see "Uploads & storage") | `uploads` |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Only read by `npm run seed:admin` (see "Admin account") | - |
 | `NODE_ENV` | `development`, `production` or `test` (production = JSON logs, strict rate limit) | `development` |
@@ -271,6 +277,184 @@ Details:
 - **Privacy:** public responses never include the account `userId` or certificate files.
 - **Approval:** new accounts start as `PENDING_APPROVAL` and are hidden until an admin approves them (see "Approval workflow").
 
+## Deployment (production)
+
+```text
+ visitor's browser
+        │  https://<your-site>.vercel.app          (static React site, built from client/)
+        ▼
+     Vercel ───────────── API calls ──────────────▶  Render  (Docker container built from server/Dockerfile)
+                                                        │              │
+                                                        ▼              ▼
+                                                  MongoDB Atlas   persistent disk /data  (uploaded photos + certificates)
+```
+
+You need free accounts on **GitHub** (the code, already there), **MongoDB Atlas**, **Render** and **Vercel**. Do the steps in this order, because each one needs an address from the previous one.
+
+### 0. Prepare two secrets (once)
+
+- **`JWT_SECRET`** signs the login tokens. Generate a long random value and keep it private:
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+  ```
+- **The admin password**: at least 12 characters, unique, not a keyboard pattern. It controls who gets approved, suspended and deleted.
+
+### 1. MongoDB Atlas (the database)
+
+1. Create a cluster (the free **M0** is fine to start with).
+2. **Database Access** → add a database user with a strong password (role: *Read and write to any database*).
+3. **Network Access** → allow Render to connect: add `0.0.0.0/0` (any address; protected by the user and password above), or the *outbound IP addresses* that Render lists for your service.
+4. **Connect → Drivers** → copy the connection string and **insert the database name** between the host and the `?`:
+   ```text
+   mongodb+srv://USER:PASSWORD@cluster0.xxxxx.mongodb.net/therapists_directory?appName=Cluster0
+   ```
+   If the password contains special characters (`@ : / ? # %`), URL-encode them. This is your `MONGODB_URI`.
+
+### 2. Backend on Render (Docker)
+
+1. **Render dashboard → New + → Web Service → Git provider** → pick this repository.
+2. Fill in the settings:
+
+   | Setting | Value |
+   |---|---|
+   | Name | for example `therapists-api` (it becomes part of the address) |
+   | Region | the one closest to your Atlas cluster and your visitors |
+   | Branch | `main` |
+   | **Root Directory** | `server` |
+   | **Language / Runtime** | `Docker` (Render finds `server/Dockerfile` by itself; Dockerfile path `./Dockerfile`) |
+   | Instance type | `Free` to try it out; `Starter` or above for real use (see "Good to know") |
+   | **Health Check Path** | `/api/health` |
+   | Auto-Deploy | `After CI checks pass` (a red CI then blocks the deploy) |
+
+3. **Environment variables** (Environment tab):
+
+   | Variable | Value |
+   |---|---|
+   | `MONGODB_URI` | the connection string from step 1 (with `/therapists_directory`) |
+   | `JWT_SECRET` | the value generated in step 0 |
+   | `CLIENT_ORIGIN` | leave a placeholder for now, set it in step 5 |
+
+   Everything else already has a production default inside the image: `NODE_ENV=production`, `PORT` (Render sets it), `UPLOADS_DIR=/data/uploads`, `TRUST_PROXY=1`. Full list: "Environment variable reference" below.
+4. **Disks → Add Disk** (paid instance types only): name `uploads`, **mount path `/data`**, size `1 GB`. Without a disk the uploaded photos and certificates disappear whenever the service is redeployed.
+5. **Create Web Service.** The first build takes a few minutes. When it is live, copy the address (for example `https://therapists-api.onrender.com`) and open `<address>/api/health`. You should see `{"status":"ok"}`.
+
+### 3. Create the first data (once)
+
+The production database starts empty. Create the categories and your admin account **from your own computer**, pointing at the production database. Run these in `server/` (the values you type here override `server/.env` and are not saved anywhere):
+
+```powershell
+# Windows PowerShell
+$env:MONGODB_URI = "mongodb+srv://USER:PASSWORD@cluster0.xxxxx.mongodb.net/therapists_directory?appName=Cluster0"
+npm run seed                                   # the 12 categories
+$env:ADMIN_EMAIL = "you@yourdomain.com"
+$env:ADMIN_PASSWORD = "your-long-unique-passphrase"
+npm run seed:admin                             # the admin account
+npm run db:check                               # should print: Database: "therapists_directory" and [ok] lines
+```
+
+```bash
+# macOS / Linux
+MONGODB_URI="mongodb+srv://..." npm run seed
+MONGODB_URI="mongodb+srv://..." ADMIN_EMAIL="you@yourdomain.com" ADMIN_PASSWORD="..." npm run seed:admin
+MONGODB_URI="mongodb+srv://..." npm run db:check
+```
+
+On a paid Render instance you can use the **Shell** tab instead: `npm run seed:prod`, `ADMIN_EMAIL=... ADMIN_PASSWORD=... npm run seed:admin:prod`, `npm run db:check:prod` (these run the compiled files inside the container).
+
+> Do **not** run `seed:therapists` in production: the sample document contains real people's contact details.
+
+### 4. Frontend on Vercel
+
+1. **Vercel dashboard → Add New → Project → Import** this repository.
+2. In *Configure Project*:
+
+   | Setting | Value |
+   |---|---|
+   | Framework Preset | `Vite` |
+   | **Root Directory** | `client` (click *Edit*) |
+   | Build Command | `npm run build` (default) |
+   | Output Directory | `dist` (default) |
+
+3. **Environment Variables:** add `VITE_API_URL` = the Render address from step 2, **without** a trailing slash and **without** `/api` (for example `https://therapists-api.onrender.com`).
+4. **Deploy.** `client/vercel.json` makes direct links such as `/admin` or `/therapist/some-name` work after a page reload. Copy the address Vercel gives you (for example `https://therapists.vercel.app`).
+
+### 5. Connect the two (CORS)
+
+The browser only lets the website call the API if the API names the website. On Render → **Environment**, set:
+
+```text
+CLIENT_ORIGIN=https://therapists.vercel.app
+```
+
+Several addresses are allowed, separated by commas (for example a custom domain as well: `https://therapists.vercel.app,https://www.my-domain.co.il`). Saving restarts the service. If the site shows *"cannot connect to the server"* while `/api/health` works, this variable is the usual cause.
+
+### 6. Check that everything works
+
+1. Open the Vercel address: the home page loads and the search works.
+2. Reload on `/login`: the page appears (no 404).
+3. Register a test therapist: the dashboard shows the yellow *waiting for approval* banner.
+4. Log in as the admin: `/admin` opens; approve the test therapist; the profile appears in the public search.
+5. Upload a profile picture and reload: it is still there.
+6. In Render → **Logs** you see one JSON line per request, and no passwords or tokens.
+7. Delete the test therapist from the admin panel, and **remove `ADMIN_PASSWORD` from every place you typed it**.
+
+### Environment variable reference
+
+**Render (server)**
+
+| Variable | Required | Meaning |
+|---|---|---|
+| `MONGODB_URI` | yes | MongoDB connection string, **with** the database name |
+| `JWT_SECRET` | yes | at least 16 characters; changing it logs everybody out |
+| `CLIENT_ORIGIN` | yes | website address(es) allowed to call the API, comma separated |
+| `JWT_EXPIRES_IN` | no | login lifetime, default `7d` |
+| `LOG_LEVEL` | no | `info` by default in production |
+| `UPLOADS_DIR` | no | image default `/data/uploads`: keep it on the persistent disk |
+| `TRUST_PROXY` | no | image default `1` (Render's load balancer). If every visitor shows the same IP, raise it to `2` |
+| `BCRYPT_ROUNDS` | no | password hashing cost, default `12` |
+| `PORT`, `NODE_ENV` | no | set by Render and by the image |
+
+**Vercel (client):** `VITE_API_URL` (required). It is baked into the site at build time, so change it, then redeploy.
+
+### Run the backend image on your own machine
+
+```bash
+docker build -t therapists-api ./server
+docker run --rm -p 10000:10000 \
+  -e MONGODB_URI="mongodb+srv://.../therapists_directory?appName=Cluster0" \
+  -e JWT_SECRET="a-long-random-secret" \
+  -e CLIENT_ORIGIN="http://localhost:5173" \
+  -e TRUST_PROXY=0 \
+  -v therapists-uploads:/data \
+  therapists-api
+# then open http://localhost:10000/api/health
+```
+
+The image runs as an unprivileged user, never contains `.env`, tests or sources (see `server/.dockerignore`), and shuts down cleanly (finishing open requests) when Render or Docker stop it.
+
+### Continuous integration (GitHub Actions)
+
+`.github/workflows/ci.yml` runs on **every push and pull request**, with three jobs in parallel:
+
+| Job | What it does |
+|---|---|
+| **Server** | `npm ci`, type-check, build, then the whole server test suite (MongoDB binary cached) |
+| **Client** | `npm ci`, type-check, the client test suite, and the production build |
+| **Backend Docker image** | builds `server/Dockerfile`, **runs the image against a real MongoDB**, registers, logs in, uploads a picture, checks CORS, stops it the way Render does (must exit with code 0), and checks it runs unprivileged without secrets inside |
+
+See the results in the repository's **Actions** tab (a green tick or red cross also appears next to every commit). The badge at the top of this README shows the latest status of `main`.
+
+To make a deploy wait for a green CI: on Render use *Auto-Deploy → After CI checks pass* (step 2). For Vercel, protect `main` with GitHub **branch protection** (*Require status checks to pass*) and merge through pull requests.
+
+### Good to know before going live
+
+- **Free Render services go to sleep** after about 15 minutes without traffic; the next visitor waits roughly a minute while it wakes up. A paid instance stays awake.
+- **Uploaded files live on the disk mounted at `/data`.** Free instances have no disk, so photos and certificates are lost on every deploy. Use a paid instance with a disk (it can only be attached to **one** instance), or later move storage to a cloud provider: `server/src/storage/` is built so that this is one new file.
+- **Back up your data.** The free Atlas M0 has no automatic backups (use *Export*, or a paid tier); Render offers snapshots for disks on paid plans.
+- **Deploys:** push to `main` and both Render and Vercel redeploy by themselves.
+- **Never commit secrets.** They live only in the Render and Vercel dashboards (and your local, git-ignored `.env`).
+- **HTTPS is automatic** on both platforms, including custom domains.
+
 ## Automated tests
 
 Two test suites live in the repository. **Neither touches your real database or sends anything to the internet**, so they are safe to run any time, and they never create users in Atlas.
@@ -335,6 +519,9 @@ client/
     App.tsx             # routes
     main.tsx
 package.json            # root scripts: npm test, npm run typecheck
+.github/workflows/ci.yml  # CI: type-check, tests, build, Docker image smoke test on every push
+client/vercel.json      # Vercel: single-page-app routing
+server/Dockerfile       # production image for Render (+ docker-entrypoint.sh, .dockerignore)
 server/
   tests/                # server test suite (Vitest + Supertest, in-memory MongoDB); run with npm test
   requests.http         # REST Client requests
