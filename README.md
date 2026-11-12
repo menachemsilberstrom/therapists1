@@ -11,9 +11,51 @@ The full roadmap is in [`CLAUDE_BUILD_PLAN.md`](./CLAUDE_BUILD_PLAN.md). The pro
 | Step | Status |
 |---|---|
 | 1.1 Backend setup & auth | Done |
-| 1.2 Therapist & public endpoints | Done (in testing) |
-| 1.3 Frontend (React) | Not started |
+| 1.2 Therapist & public endpoints | Done |
+| 1.3 Frontend (React) | Done |
 | Phase 2 (MVP) / Phase 3 (V1) | Not started |
+
+## Quick start (run everything)
+
+Run the server and the client in two terminals:
+
+```bash
+# Terminal 1 - API on http://localhost:5000
+cd server && npm install && npm run dev
+
+# Terminal 2 - website on http://localhost:5173
+cd client && npm install && npm run dev
+```
+
+Open http://localhost:5173. The client dev server proxies `/api` to the Express server, so no CORS setup is needed.
+Set up `server/.env` and seed the categories first (see below).
+
+## Frontend (client)
+
+React + Vite + TypeScript + Tailwind CSS v4, Hebrew **RTL** (`<html lang="he" dir="rtl">`, logical Tailwind classes such as `ms-`/`me-`/`text-start`).
+
+| Route | Access | Page |
+|---|---|---|
+| `/` | Public | Search (text box + category chips + pagination) and therapist cards |
+| `/therapist/:slug` | Public | Full profile with call / WhatsApp / email buttons |
+| `/login`, `/register` | Public | Auth forms |
+| `/dashboard` | Logged-in therapist | Edit own profile (text fields + categories) |
+
+Mobile-first responsive design:
+- Layouts stack on phones (directory grid 1 → 2 → 3 columns, profile header, dashboard forms) and use `sm:`/`md:` breakpoints for spacing and font sizes.
+- Touch targets are at least 44px (buttons, inputs, nav links); category chips are a horizontally scrollable row on phones and wrap on larger screens.
+- Contact buttons (call / WhatsApp / email) are full width on phones. Inputs use 16px text so iOS doesn't zoom on focus.
+- Shared styles live in `client/src/components/ui.ts`.
+
+Notes:
+- The login token is kept in `localStorage` and sent by an Axios interceptor. If the server answers `401` (expired token) the user is logged out automatically.
+- `ProtectedRoute` is only a UX guard. Real access control is enforced by the server (JWT + role middleware).
+
+| Command (in `client/`) | What it does |
+|---|---|
+| `npm run dev` | Start the dev server on port 5173 |
+| `npm run build` | Type-check and build to `dist/` |
+| `npm run typecheck` | Type-check only |
 
 ## Getting started (server)
 
@@ -80,6 +122,16 @@ Details:
 ## Project structure
 
 ```text
+client/
+  src/
+    api/                # axios instance (JWT interceptor), API service functions, error messages
+    components/         # Navbar, Layout, TherapistCard, ProtectedRoute, form + feedback helpers
+    context/            # AuthContext (user, login, register, logout)
+    pages/              # Home, TherapistProfilePage, Login, Register, Dashboard
+    types/              # TypeScript interfaces mirroring the server DTOs
+    utils/              # contact links (tel / WhatsApp), region labels
+    App.tsx             # routes
+    main.tsx
 server/
   requests.http         # REST Client requests
   src/

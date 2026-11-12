@@ -1,0 +1,97 @@
+// Mirrors the server DTOs (server/src/utils/profileDto.ts and the auth controller).
+
+export type Region = 'NORTH' | 'CENTER' | 'JERUSALEM' | 'SOUTH' | 'ONLINE_ONLY';
+export type Gender = 'MALE' | 'FEMALE';
+export type TargetAudience = 'CHILDREN' | 'TEENS' | 'ADULTS' | 'COUPLES' | 'PARENTS';
+export type UserRole = 'THERAPIST' | 'ADMIN';
+export type UserStatus = 'PENDING_APPROVAL' | 'ACTIVE' | 'SUSPENDED';
+
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface TherapistCardData {
+  id: string;
+  slug: string;
+  fullName: string;
+  professionalTitle: string;
+  city: string;
+  region?: Region;
+  acceptsOnline: boolean;
+  bioSnippet: string;
+  profileImageUrl?: string;
+  categories: Category[];
+}
+
+export interface ContactInfo {
+  phone: string;
+  whatsapp?: string;
+  email?: string;
+}
+
+export interface TherapistProfile {
+  id: string;
+  slug: string;
+  fullName: string;
+  professionalTitle: string;
+  city: string;
+  region?: Region;
+  acceptsOnline: boolean;
+  profileImageUrl?: string;
+  categories: Category[];
+  bio: string;
+  gender?: Gender;
+  targetAudiences: TargetAudience[];
+  contactInfo: ContactInfo;
+  hasVerifiedCertificates: boolean;
+  isPubliclyVisible: boolean;
+}
+
+export interface PagedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface TherapistSearchParams {
+  q?: string;
+  category?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface UpdateProfilePayload {
+  fullName?: string;
+  professionalTitle?: string;
+  bio?: string;
+  city?: string;
+  phone?: string;
+  whatsapp?: string;
+  contactEmail?: string;
+  categories?: string[]; // category slugs
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: AuthUser;
+}
+
+export interface LoginPayload {
+  email: string;
+  password: string;
+}
+
+export interface RegisterPayload extends LoginPayload {
+  fullName?: string;
+}
