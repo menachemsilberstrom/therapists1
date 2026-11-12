@@ -10,5 +10,4 @@ if (env.MONGODB_URI.startsWith('mongodb+srv://') && dns.getServers().some((s) =>
 
 export async function connectDB(): Promise<void> {
   await mongoose.connect(env.MONGODB_URI);
-  console.log('MongoDB connected');
 }

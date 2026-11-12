@@ -6,7 +6,9 @@ export type TargetAudience = 'CHILDREN' | 'TEENS' | 'ADULTS' | 'COUPLES' | 'PARE
 
 export interface ICertificate {
   title: string;
+  /** Private storage key of the uploaded file. Never exposed publicly; admins get it through an authenticated endpoint. */
   fileUrl: string;
+  originalName: string;
   uploadedAt: Date;
   isVerified: boolean;
 }
@@ -43,6 +45,7 @@ const certificateSchema = new Schema<ICertificate>(
   {
     title: { type: String, required: true },
     fileUrl: { type: String, required: true },
+    originalName: { type: String, default: '' },
     uploadedAt: { type: Date, default: Date.now },
     isVerified: { type: Boolean, default: false },
   },

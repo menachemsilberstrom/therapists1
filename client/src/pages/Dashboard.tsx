@@ -6,7 +6,9 @@ import { ErrorMessage, Spinner, SuccessMessage } from '../components/Feedback';
 import FormField from '../components/FormField';
 import { inputClass, panelClass, primaryButtonClass, secondaryButtonClass } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
-import type { Category, TherapistProfile } from '../types';
+import AvatarUploader from '../components/AvatarUploader';
+import CertificatesManager from '../components/CertificatesManager';
+import type { Category, OwnTherapistProfile, TherapistProfile } from '../types';
 
 interface FormState {
   fullName: string;
@@ -39,7 +41,7 @@ export default function Dashboard() {
   const isTherapist = user?.role === 'THERAPIST';
 
   const [form, setForm] = useState<FormState | null>(null);
-  const [profile, setProfile] = useState<TherapistProfile | null>(null);
+  const [profile, setProfile] = useState<OwnTherapistProfile | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(isTherapist);
   const [saving, setSaving] = useState(false);
@@ -123,6 +125,9 @@ export default function Dashboard() {
           </Link>
         )}
       </div>
+
+      {/* Uploads save immediately and independently of the text form, so unsaved text edits are kept. */}
+      <AvatarUploader name={profile.fullName} imageUrl={profile.profileImageUrl} onChange={setProfile} />
 
       <form onSubmit={handleSubmit} className={`space-y-5 ${panelClass}`}>
         {error && <ErrorMessage message={error} />}
@@ -234,6 +239,8 @@ export default function Dashboard() {
           {saving ? 'שומר...' : 'שמירת שינויים'}
         </button>
       </form>
+
+      <CertificatesManager certificates={profile.certificates} onChange={setProfile} />
     </div>
   );
 }

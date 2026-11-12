@@ -13,7 +13,10 @@ The full roadmap is in [`CLAUDE_BUILD_PLAN.md`](./CLAUDE_BUILD_PLAN.md). The pro
 | 1.1 Backend setup & auth | Done |
 | 1.2 Therapist & public endpoints | Done |
 | 1.3 Frontend (React) | Done |
-| Phase 2 (MVP) / Phase 3 (V1) | Not started |
+| Phase 2 foundation (logging, security, admin seed) | Done |
+| 2.1 File uploads (avatar, certificates) | Done |
+| 2.2 Approval workflow, 2.3 Admin panel, 2.4 Advanced filters | Not started |
+| Phase 3 (V1) | Not started |
 
 ## Quick start (run everything)
 
@@ -78,6 +81,10 @@ npm run dev               # http://localhost:5000
 | `JWT_SECRET` | Secret for signing tokens, at least 16 characters | - (required) |
 | `JWT_EXPIRES_IN` | Token lifetime | `7d` |
 | `CLIENT_ORIGIN` | Allowed CORS origin (the React app) | `http://localhost:5173` |
+| `UPLOADS_DIR` | Folder for uploaded files, relative to `server/` (see "Uploads & storage") | `uploads` |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Only read by `npm run seed:admin` (see "Admin account") | - |
+| `NODE_ENV` | `development`, `production` or `test` (production = JSON logs, strict rate limit) | `development` |
+| `LOG_LEVEL` | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent` | `debug` in dev, `info` in production |
 
 > **Windows + Atlas note:** if you see `querySrv ECONNREFUSED`, Node's DNS was pointed at `127.0.0.1`.
 > `src/config/db.ts` already works around this by switching to public DNS for `mongodb+srv://` URIs.
@@ -88,9 +95,42 @@ npm run dev               # http://localhost:5000
 |---|---|
 | `npm run dev` | Start the server with auto-reload |
 | `npm run seed` | Seed categories |
+| `npm run seed:admin` | Create or update the admin account from `ADMIN_EMAIL` / `ADMIN_PASSWORD` (see "Admin account") |
 | `npm run seed:therapists` | Import the sample therapists from the `.docx` directory file (see "Sample data") |
 | `npm run typecheck` | Type-check without building |
 | `npm run build` / `npm start` | Compile to `dist/` and run it |
+
+## Logging & security
+
+- **Logging** uses `pino` + `pino-http`: every request is logged once with a request ID (also returned in the `X-Request-Id` header), method, path, status and duration, plus the user id for authenticated requests. Levels: `info` for 2xx/3xx, `warn` for 4xx, `error` for 5xx (with stack trace). `/api/health` is not logged. Development output is colored; production output is one JSON object per line. Passwords, tokens and the `Authorization` header are never logged.
+- **Auth checks the database on every protected request.** Role and status come from the user's record, not from the token, so suspending a user or changing a role takes effect immediately. A suspended user gets `403 Account suspended` and the client logs them out.
+- **`helmet`** sets the standard security headers.
+- **Rate limiting:** 600 requests per 15 minutes per IP for the whole API, and a stricter limit on login/register that counts only failed attempts (20 per 15 minutes in production, 200 in development). Over the limit the API answers `429`, and even correct logins are refused until the window resets.
+
+## Admin account
+
+There is no sign-up for admins. Create the first one from the command line:
+
+```bash
+# 1. In server/.env set (password: at least 12 characters):
+#      ADMIN_EMAIL=you@yourdomain.com
+#      ADMIN_PASSWORD=a-long-unique-passphrase
+# 2. Then, from server/:
+npm run seed:admin
+```
+
+- **Safe to re-run:** it creates the admin, or updates role/status/password only if they differ ("already up to date" otherwise).
+- **Guards:** refuses weak or placeholder values, and refuses to silently turn an existing *therapist* account into the admin unless you add `-- --promote`.
+- The password is only stored hashed (bcrypt) and never printed. **Delete `ADMIN_PASSWORD` from `.env` afterwards.**
+- Sign in at `/login`. The server enforces the role on every request (from the database, not the token); the admin screens themselves arrive with Step 2.3.
+
+## Uploads & storage
+
+- **Avatar:** JPG/PNG/WEBP up to 5MB. The server checks the file's real bytes (not its name or Content-Type), rotates it per its EXIF orientation, crops it to a 512x512 square and saves it as WebP. All metadata (such as GPS location) is dropped. Each upload gets a new random file name, and the previous picture is deleted.
+- **Certificates:** optional PDF/JPG/PNG/WEBP up to 5MB each (max 10 per therapist). They are stored in a **private** folder that is never served; the owner sees only title, name and verification status. Admin access arrives with Step 2.3.
+- **Where files live:** `server/uploads/public` (avatars, served at `/uploads`) and `server/uploads/private` (certificates). The whole folder is git-ignored. Back it up like the database.
+- **Storage is behind an interface** (`server/src/storage/`). Today it is local disk. Moving to a cloud provider such as Cloudinary or S3 means adding one `StorageProvider` class, with no change to routes or controllers. Note that many hosting platforms wipe local disk on every deploy, so use a cloud provider or a persistent volume in production.
+- Uploads are rate limited (60 per hour per IP) and only reachable after authentication, so anonymous requests are rejected before any file is read.
 
 ## Sample data (seed therapists)
 
@@ -126,6 +166,11 @@ Base URL: `http://localhost:5000`. Protected routes need `Authorization: Bearer 
 | GET | `/api/therapists/:slug` | Public | Full public profile |
 | GET | `/api/therapists/me` | Therapist | Own profile (to prefill the dashboard form) |
 | PUT | `/api/therapists/me` | Therapist | Partial update of own profile |
+| POST | `/api/therapists/me/avatar` | Therapist | Upload or replace the profile picture (multipart, field `avatar`) |
+| DELETE | `/api/therapists/me/avatar` | Therapist | Remove the profile picture |
+| POST | `/api/therapists/me/certificates` | Therapist | Upload a certificate (multipart: `title` + file `certificate`), max 10, private |
+| DELETE | `/api/therapists/me/certificates/:certId` | Therapist | Delete one of your certificates |
+| GET | `/uploads/avatars/<file>` | Public | Serves avatars (static, cacheable) |
 
 Details:
 
@@ -162,6 +207,8 @@ server/
     controllers/        # auth, therapist, category
     routes/             # /api/auth, /api/therapists, /api/categories
     utils/              # response DTO mappers
-    scripts/            # seedCategories, seedTherapists (+ lib/: docx reader, row mapper)
+    storage/            # StorageProvider interface + local-disk implementation
+    services/           # image processing (sharp)
+    scripts/            # seedCategories, seedAdmin, seedTherapists (+ lib/: docx reader, row mapper)
     server.ts           # entry point
 ```

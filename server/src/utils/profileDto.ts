@@ -1,5 +1,5 @@
 import type { Types } from 'mongoose';
-import type { ITherapistProfile } from '../models/TherapistProfile.js';
+import type { ICertificate, ITherapistProfile } from '../models/TherapistProfile.js';
 
 export interface PopulatedCategory {
   _id: Types.ObjectId;
@@ -41,6 +41,20 @@ export interface TherapistProfileDto extends Omit<TherapistCardDto, 'bioSnippet'
   contactInfo: ITherapistProfile['contactInfo'];
   hasVerifiedCertificates: boolean;
   isPubliclyVisible: boolean;
+}
+
+/** A certificate as its owner sees it. The private storage key (fileUrl) is never included. */
+export interface OwnCertificateDto {
+  id: string;
+  title: string;
+  originalName: string;
+  uploadedAt: Date;
+  isVerified: boolean;
+}
+
+/** The therapist's own view of their profile: the public data plus their certificates. */
+export interface OwnTherapistProfileDto extends TherapistProfileDto {
+  certificates: OwnCertificateDto[];
 }
 
 const SNIPPET_LENGTH = 160;
@@ -93,5 +107,16 @@ export function toProfileDto(p: LeanProfile): TherapistProfileDto {
     contactInfo: p.contactInfo,
     hasVerifiedCertificates: p.certificates.some((c) => c.isVerified),
     isPubliclyVisible: p.isPubliclyVisible,
+  };
+}
+
+/** Only for the logged-in owner (GET/PUT/uploads on /me). Public endpoints must keep using toProfileDto. */
+export function toOwnProfileDto(p: LeanProfile): OwnTherapistProfileDto {
+  return {
+    ...toProfileDto(p),
+    certificates: p.certificates.map((c) => {
+      const { _id } = c as ICertificate & { _id: Types.ObjectId }; // lean subdocuments carry an _id at runtime
+      return { id: _id.toString(), title: c.title, originalName: c.originalName, uploadedAt: c.uploadedAt, isVerified: c.isVerified };
+    }),
   };
 }

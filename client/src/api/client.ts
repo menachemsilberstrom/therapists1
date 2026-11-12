@@ -16,11 +16,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// A 401 while we hold a token means it expired or was invalidated: tell AuthContext to log out.
+// A 401 while we hold a token means it expired or was invalidated, and "Account suspended" means an admin
+// suspended this user: in both cases tell AuthContext to log out.
 api.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
+    const data: unknown = axios.isAxiosError(error) ? error.response?.data : undefined;
+    const suspended =
+      axios.isAxiosError(error) &&
+      error.response?.status === 403 &&
+      typeof data === 'object' &&
+      data !== null &&
+      (data as { message?: unknown }).message === 'Account suspended';
+    if (axios.isAxiosError(error) && (error.response?.status === 401 || suspended)) {
       let hadToken = false;
       try {
         hadToken = localStorage.getItem(TOKEN_KEY) !== null;

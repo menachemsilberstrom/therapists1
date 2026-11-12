@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getErrorMessage, isNotFound } from '../api/errors';
 import { therapistsApi } from '../api/services';
+import Avatar from '../components/Avatar';
 import { ErrorMessage, Spinner } from '../components/Feedback';
 import { panelClass, secondaryButtonClass } from '../components/ui';
 import type { TargetAudience, TherapistProfile } from '../types';
@@ -74,12 +75,12 @@ export default function TherapistProfilePage() {
 
       {/* Phones: avatar above the details, centred. From sm up: avatar beside the details. */}
       <header className={`flex flex-col items-center gap-4 text-center sm:flex-row sm:text-start ${panelClass}`}>
-        <div
-          aria-hidden="true"
-          className="flex size-16 shrink-0 items-center justify-center rounded-full bg-teal-100 text-2xl font-bold text-teal-700 sm:size-20 sm:text-3xl"
-        >
-          {therapist.fullName.charAt(0)}
-        </div>
+        <Avatar
+          name={therapist.fullName}
+          src={therapist.profileImageUrl}
+          eager
+          className="size-24 text-3xl sm:size-28 sm:text-4xl"
+        />
         <div className="min-w-0">
           <h1 className="break-words text-xl font-bold text-slate-900 sm:text-2xl">{therapist.fullName}</h1>
           {therapist.professionalTitle && (

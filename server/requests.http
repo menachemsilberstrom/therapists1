@@ -125,3 +125,57 @@ GET {{baseUrl}}/api/therapists/{{list.response.body.items[0].slug}}
 
 ### Unknown slug (expects 404)
 GET {{baseUrl}}/api/therapists/no-such-therapist
+
+###############################################################
+# Uploads (therapist token required)
+# Put a real image next to this file (e.g. photo.jpg) and a PDF or image (e.g. certificate.pdf), or change the paths.
+# Limits: 5MB, avatar = JPG/PNG/WEBP, certificate = PDF/JPG/PNG/WEBP. The real file bytes are checked, not the name.
+###############################################################
+
+### Upload / replace my profile picture (200; resized to a 512x512 WebP, EXIF stripped)
+POST {{baseUrl}}/api/therapists/me/avatar
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----FormBoundary
+
+------FormBoundary
+Content-Disposition: form-data; name="avatar"; filename="photo.jpg"
+Content-Type: image/jpeg
+
+< ./photo.jpg
+------FormBoundary--
+
+### Remove my profile picture (200)
+DELETE {{baseUrl}}/api/therapists/me/avatar
+Authorization: Bearer {{token}}
+
+### Upload a certificate (201; private, only admins will be able to open it)
+# @name addCertificate
+POST {{baseUrl}}/api/therapists/me/certificates
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----FormBoundary
+
+------FormBoundary
+Content-Disposition: form-data; name="title"
+
+תואר שני בעבודה סוציאלית קלינית
+------FormBoundary
+Content-Disposition: form-data; name="certificate"; filename="certificate.pdf"
+Content-Type: application/pdf
+
+< ./certificate.pdf
+------FormBoundary--
+
+### Delete my last uploaded certificate (200). Run "Upload a certificate" first.
+DELETE {{baseUrl}}/api/therapists/me/certificates/{{addCertificate.response.body.certificates[0].id}}
+Authorization: Bearer {{token}}
+
+### Upload without a token (expects 401)
+POST {{baseUrl}}/api/therapists/me/avatar
+Content-Type: multipart/form-data; boundary=----FormBoundary
+
+------FormBoundary
+Content-Disposition: form-data; name="avatar"; filename="photo.jpg"
+Content-Type: image/jpeg
+
+< ./photo.jpg
+------FormBoundary--

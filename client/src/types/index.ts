@@ -49,6 +49,20 @@ export interface TherapistProfile {
   isPubliclyVisible: boolean;
 }
 
+/** A certificate as its owner sees it (the file itself is private and only visible to admins). */
+export interface OwnCertificate {
+  id: string;
+  title: string;
+  originalName: string;
+  uploadedAt: string;
+  isVerified: boolean;
+}
+
+/** The logged-in therapist's own profile: the public data plus their certificates. */
+export interface OwnTherapistProfile extends TherapistProfile {
+  certificates: OwnCertificate[];
+}
+
 export interface PagedResult<T> {
   items: T[];
   total: number;

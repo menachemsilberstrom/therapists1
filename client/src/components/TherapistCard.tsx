@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { TherapistCardData } from '../types';
 import { REGION_LABELS } from '../utils/contact';
+import Avatar from './Avatar';
 
 export default function TherapistCard({ therapist }: { therapist: TherapistCardData }) {
   const location = therapist.city || (therapist.region ? REGION_LABELS[therapist.region] : '');
@@ -11,12 +12,7 @@ export default function TherapistCard({ therapist }: { therapist: TherapistCardD
       className="flex h-full min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 transition hover:border-teal-300 hover:shadow-md"
     >
       <div className="flex items-center gap-3">
-        <div
-          aria-hidden="true"
-          className="flex size-12 shrink-0 items-center justify-center rounded-full bg-teal-100 text-xl font-bold text-teal-700"
-        >
-          {therapist.fullName.charAt(0)}
-        </div>
+        <Avatar name={therapist.fullName} src={therapist.profileImageUrl} className="size-12 text-xl" />
         <div className="min-w-0">
           <h3 className="truncate text-lg font-semibold text-slate-900">{therapist.fullName}</h3>
           {therapist.professionalTitle && (

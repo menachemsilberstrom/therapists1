@@ -1,3 +1,4 @@
+import { randomBytes, randomUUID } from 'node:crypto';
 import type { RequestHandler } from 'express';
 import type { QueryFilter } from 'mongoose';
 import { Types } from 'mongoose';
@@ -5,12 +6,19 @@ import { z } from 'zod';
 import { Category } from '../models/Category.js';
 import { TherapistProfile, type ITherapistProfile } from '../models/TherapistProfile.js';
 import { HttpError } from '../middlewares/errorHandler.js';
+import { processAvatar } from '../services/imageService.js';
+import { storage } from '../storage/index.js';
+import { detectFileType } from '../utils/fileType.js';
 import {
   toCardDto,
+  toOwnProfileDto,
   toProfileDto,
   type LeanProfile,
   type PopulatedCategory,
 } from '../utils/profileDto.js';
+
+const MAX_CERTIFICATES = 10;
+const AVATAR_KEY_PREFIX = 'avatars/';
 
 const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -102,7 +110,7 @@ export const getTherapistBySlug: RequestHandler = async (req, res) => {
 export const getMyProfile: RequestHandler = async (req, res) => {
   const profile = await findLeanProfile({ userId: new Types.ObjectId(req.auth?.userId) });
   if (!profile) throw new HttpError(404, 'Profile not found');
-  res.json(toProfileDto(profile));
+  res.json(toOwnProfileDto(profile));
 };
 
 /** PUT /api/therapists/me - update own text fields. Only the fields that are sent are changed. */
@@ -130,7 +138,127 @@ export const updateMyProfile: RequestHandler = async (req, res) => {
 
   await profile.save();
 
-  const updated = await findLeanProfile({ _id: profile._id });
+  res.json(await loadOwnProfileDto(profile._id));
+};
+
+async function loadOwnProfileDto(profileId: Types.ObjectId) {
+  const updated = await findLeanProfile({ _id: profileId });
   if (!updated) throw new HttpError(404, 'Profile not found');
-  res.json(toProfileDto(updated));
+  return toOwnProfileDto(updated);
+}
+
+async function findMyProfileDocument(userId: string | undefined) {
+  const profile = await TherapistProfile.findOne({ userId: new Types.ObjectId(userId) });
+  if (!profile) throw new HttpError(404, 'Profile not found');
+  return profile;
+}
+
+/** Best-effort file removal: a leftover file must never turn a successful request into an error. */
+async function removeQuietly(
+  req: Parameters<RequestHandler>[0],
+  access: 'public' | 'private',
+  key: string,
+): Promise<void> {
+  try {
+    await storage.remove(access, key);
+  } catch (err) {
+    req.log.warn({ err, key }, 'Could not delete stored file');
+  }
+}
+
+/** POST /api/therapists/me/avatar (multipart, field "avatar") - replaces the profile picture. */
+export const setMyAvatar: RequestHandler = async (req, res) => {
+  const file = req.file;
+  if (!file) throw new HttpError(400, 'No file uploaded', 'FILE_MISSING');
+
+  const detected = detectFileType(file.buffer);
+  if (!detected || detected.mime === 'application/pdf') {
+    throw new HttpError(400, 'Only JPG, PNG or WEBP images are allowed', 'FILE_TYPE_INVALID');
+  }
+
+  const profile = await findMyProfileDocument(req.auth?.userId);
+  const processed = await processAvatar(file.buffer);
+
+  // A new random key per upload: the URL changes, so browsers/CDNs never show a stale picture.
+  const key = `${AVATAR_KEY_PREFIX}${profile.id as string}-${randomBytes(6).toString('hex')}.webp`;
+  await storage.save('public', key, processed);
+
+  const previousKey = profile.profileImageUrl ? storage.keyFromPublicUrl(profile.profileImageUrl) : null;
+  try {
+    profile.profileImageUrl = storage.publicUrl(key);
+    await profile.save();
+  } catch (err) {
+    await removeQuietly(req, 'public', key); // don't leave an orphan if the database write failed
+    throw err;
+  }
+  if (previousKey?.startsWith(AVATAR_KEY_PREFIX)) await removeQuietly(req, 'public', previousKey);
+
+  res.json(await loadOwnProfileDto(profile._id));
+};
+
+/** DELETE /api/therapists/me/avatar - back to the initial-letter placeholder. */
+export const removeMyAvatar: RequestHandler = async (req, res) => {
+  const profile = await findMyProfileDocument(req.auth?.userId);
+  const previousKey = profile.profileImageUrl ? storage.keyFromPublicUrl(profile.profileImageUrl) : null;
+
+  profile.profileImageUrl = undefined;
+  await profile.save();
+  if (previousKey?.startsWith(AVATAR_KEY_PREFIX)) await removeQuietly(req, 'public', previousKey);
+
+  res.json(await loadOwnProfileDto(profile._id));
+};
+
+const certificateSchema = z.object({ title: z.string().trim().min(2).max(150) });
+
+/** POST /api/therapists/me/certificates (multipart: "title" + file "certificate") - optional credential, private. */
+export const addMyCertificate: RequestHandler = async (req, res) => {
+  const file = req.file;
+  if (!file) throw new HttpError(400, 'No file uploaded', 'FILE_MISSING');
+  const { title } = certificateSchema.parse(req.body); // validate everything BEFORE writing any file
+
+  const detected = detectFileType(file.buffer);
+  if (!detected) throw new HttpError(400, 'Only PDF, JPG, PNG or WEBP files are allowed', 'FILE_TYPE_INVALID');
+
+  const profile = await findMyProfileDocument(req.auth?.userId);
+  if (profile.certificates.length >= MAX_CERTIFICATES) {
+    throw new HttpError(400, `At most ${MAX_CERTIFICATES} certificates are allowed`, 'TOO_MANY_CERTIFICATES');
+  }
+
+  // Server-generated key; the client's file name is only kept as a label (never used as a path).
+  const key = `certificates/${profile.id as string}/${randomUUID()}${detected.ext}`;
+  await storage.save('private', key, file.buffer);
+
+  try {
+    profile.certificates.push({
+      title,
+      fileUrl: key,
+      // Multer reads multipart file names as latin1; restore the real UTF-8 (Hebrew) name.
+      originalName: Buffer.from(file.originalname, 'latin1').toString('utf8').slice(0, 200),
+      uploadedAt: new Date(),
+      isVerified: false,
+    });
+    await profile.save();
+  } catch (err) {
+    await removeQuietly(req, 'private', key);
+    throw err;
+  }
+
+  res.status(201).json(await loadOwnProfileDto(profile._id));
+};
+
+/** DELETE /api/therapists/me/certificates/:certId - remove one of my own certificates and its file. */
+export const removeMyCertificate: RequestHandler = async (req, res) => {
+  const certId = req.params.certId;
+  if (typeof certId !== 'string' || !Types.ObjectId.isValid(certId)) throw new HttpError(400, 'Invalid certificate id');
+
+  const profile = await findMyProfileDocument(req.auth?.userId);
+  const index = profile.certificates.findIndex((c) => String((c as { _id?: Types.ObjectId })._id) === certId);
+  const removed = profile.certificates[index];
+  if (index === -1 || !removed) throw new HttpError(404, 'Certificate not found');
+
+  profile.certificates.splice(index, 1);
+  await profile.save();
+  await removeQuietly(req, 'private', removed.fileUrl);
+
+  res.json(await loadOwnProfileDto(profile._id));
 };

@@ -3,6 +3,7 @@ import type {
   AuthResponse,
   Category,
   LoginPayload,
+  OwnTherapistProfile,
   PagedResult,
   RegisterPayload,
   TherapistCardData,
@@ -27,7 +28,24 @@ export const therapistsApi = {
     (await api.get<PagedResult<TherapistCardData>>('/therapists', { params })).data,
   getBySlug: async (slug: string): Promise<TherapistProfile> =>
     (await api.get<TherapistProfile>(`/therapists/${encodeURIComponent(slug)}`)).data,
-  getMine: async (): Promise<TherapistProfile> => (await api.get<TherapistProfile>('/therapists/me')).data,
-  updateMine: async (payload: UpdateProfilePayload): Promise<TherapistProfile> =>
-    (await api.put<TherapistProfile>('/therapists/me', payload)).data,
+  getMine: async (): Promise<OwnTherapistProfile> => (await api.get<OwnTherapistProfile>('/therapists/me')).data,
+  updateMine: async (payload: UpdateProfilePayload): Promise<OwnTherapistProfile> =>
+    (await api.put<OwnTherapistProfile>('/therapists/me', payload)).data,
+
+  // Uploads are multipart/form-data; axios sets the boundary header itself when given a FormData.
+  uploadAvatar: async (file: File): Promise<OwnTherapistProfile> => {
+    const form = new FormData();
+    form.append('avatar', file);
+    return (await api.post<OwnTherapistProfile>('/therapists/me/avatar', form)).data;
+  },
+  deleteAvatar: async (): Promise<OwnTherapistProfile> =>
+    (await api.delete<OwnTherapistProfile>('/therapists/me/avatar')).data,
+  addCertificate: async (title: string, file: File): Promise<OwnTherapistProfile> => {
+    const form = new FormData();
+    form.append('title', title);
+    form.append('certificate', file);
+    return (await api.post<OwnTherapistProfile>('/therapists/me/certificates', form)).data;
+  },
+  deleteCertificate: async (id: string): Promise<OwnTherapistProfile> =>
+    (await api.delete<OwnTherapistProfile>(`/therapists/me/certificates/${encodeURIComponent(id)}`)).data,
 };
